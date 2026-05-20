@@ -364,18 +364,13 @@ function addFabs(mainColor,mainFn,voiceCtx,showTransfer){
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDashboard(){
-  const bb=getBeginningBalance(S.activeMonth);
   const ti=tInc(),te=tExp(),tcp=tInstallPay();
   const totalOut=te+tcp;
-  const endBal=bb+ti-totalOut;
+  const totalWallet=(S.funds||[]).reduce((s,f)=>s+getFundBalance(f.id,S.activeMonth),0);
   const bec=byCat(mExp(),"category",S.expCats);
   const bic=byCat(mInc(),"source",S.incCats);
 
   let h=`<div class="bal-row">
-    <div class="card" style="border-top:2px solid #A78BFA">
-      <div class="card-label">Beg Balance</div>
-      <div class="card-value" style="color:#A78BFA">${fmtShort(bb)}</div>
-    </div>
     <div class="card" style="border-top:2px solid #34D399">
       <div class="card-label">Cash In</div>
       <div class="card-value" style="color:#34D399">${fmtShort(ti)}</div>
@@ -394,10 +389,10 @@ function renderDashboard(){
     </div>
   </div>`:""}
   <div style="padding:8px 14px 0">
-    <div class="card" style="border-top:2px solid ${endBal>=0?"#60A5FA":"#F97316"};display:flex;justify-content:space-between;align-items:center">
+    <div class="card" style="border-top:2px solid ${totalWallet>=0?"#60A5FA":"#F97316"};display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div class="card-label">Ending Balance (forwarded next month)</div>
-        <div class="card-value" style="color:${endBal>=0?"#60A5FA":"#F97316"};font-size:18px">${fmt(endBal)}</div>
+        <div class="card-label">Total Wallet Balance</div>
+        <div class="card-value" style="color:${totalWallet>=0?"#60A5FA":"#F97316"};font-size:18px">${fmt(totalWallet)}</div>
       </div>
       <div style="font-size:28px">💰</div>
     </div>
@@ -412,7 +407,7 @@ function renderDashboard(){
   }
 
   // Expenses by category
-  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">📊 Expenses by Category</div><div style="display:flex;gap:6px"><button class="btn-gray" onclick="openBeginBal()" style="font-size:10px">📊 Beg Bal</button><button class="btn-blue" onclick="openBudgets()">Budgets</button></div></div>`;
+  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">📊 Expenses by Category</div><button class="btn-blue" onclick="openBudgets()">Budgets</button></div>`;
   const rows=S.expCats.filter(c=>(bec[c.name]||0)>0||S.budgets[c.name]).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
   if(!rows.length)h+=`<div class="empty">No expenses yet.</div>`;
   rows.forEach(c=>{
@@ -1033,8 +1028,7 @@ function renderReports(){
   const bec=byCat(mExp(),"category",S.expCats);
   const te=tExp(),ti=tInc(),tcp=tInstallPay();
   const totalOut=te+tcp;
-  const bb=getBeginningBalance(S.activeMonth);
-  const endBal=bb+ti-totalOut;
+  const totalWallet=(S.funds||[]).reduce((s,f)=>s+getFundBalance(f.id,S.activeMonth),0);
   const me=mExp();
   const days=new Date(S.activeMonth.split("-")[0],S.activeMonth.split("-")[1],0).getDate();
   // Export bar
@@ -1054,12 +1048,11 @@ function renderReports(){
   h+=`<div class="sec"><div class="sec-title">📅 ${mlabelFull(S.activeMonth)} Summary</div>
   <div style="background:var(--surface);border-radius:14px;padding:14px;margin-bottom:14px;">`;
   const summaryRows=[
-    {l:"Beginning Balance",v:fmt(bb),c:"#A78BFA"},
     {l:"Total Cash In",v:fmt(ti),c:"#34D399"},
     {l:"Regular Expenses",v:fmt(te),c:"#F87171"},
     ...(tcp>0?[{l:"CC / Installment Payments",v:fmt(tcp),c:"#F97316"}]:[]),
     {l:"Total Outflow",v:fmt(totalOut),c:"#F87171"},
-    {l:"Ending Balance",v:fmt(endBal),c:endBal>=0?"#60A5FA":"#F97316"},
+    {l:"Total Wallet Balance",v:fmt(totalWallet),c:totalWallet>=0?"#60A5FA":"#F97316"},
     {l:"No. of Transactions",v:me.length,c:"#FFE66D"},
     {l:"Avg Daily Spend",v:fmt(totalOut/Math.max(days,1)),c:"#FB923C"},
   ];
