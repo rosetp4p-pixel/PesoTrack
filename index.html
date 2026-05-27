@@ -364,40 +364,12 @@ function addFabs(mainColor,mainFn,voiceCtx,showTransfer){
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDashboard(){
-  const ti=tInc(),te=tExp(),tcp=tInstallPay();
-  const totalOut=te+tcp;
-  const totalWallet=(S.funds||[]).reduce((s,f)=>s+getFundBalance(f.id,S.activeMonth),0);
   const bec=byCat(mExp(),"category",S.expCats);
   const mi=mInc();
   const me=mExp();
+  const te=tExp();
 
-  let h=`<div class="bal-row">
-    <div class="card" style="border-top:2px solid #34D399">
-      <div class="card-label">Cash In</div>
-      <div class="card-value" style="color:#34D399">${fmtShort(ti)}</div>
-    </div>
-    <div class="card" style="border-top:2px solid #F87171">
-      <div class="card-label">Expenses${tcp>0?" + CC":""}</div>
-      <div class="card-value" style="color:#F87171">${fmtShort(totalOut)}</div>
-    </div>
-  </div>
-  ${tcp>0?`<div style="padding:4px 14px 0;display:flex;gap:8px">
-    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
-      <span style="color:var(--muted)">Regular Expenses</span><span style="color:#F87171;font-weight:800">${fmt(te)}</span>
-    </div>
-    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
-      <span style="color:var(--muted)">CC Payments</span><span style="color:#F97316;font-weight:800">${fmt(tcp)}</span>
-    </div>
-  </div>`:""}
-  <div style="padding:8px 14px 0">
-    <div class="card" style="border-top:2px solid ${totalWallet>=0?"#60A5FA":"#F97316"};display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div class="card-label">Total Wallet Balance</div>
-        <div class="card-value" style="color:${totalWallet>=0?"#60A5FA":"#F97316"};font-size:18px">${fmt(totalWallet)}</div>
-      </div>
-      <div style="font-size:28px">💰</div>
-    </div>
-  </div>`;
+  let h=``;
 
   // ── Cash In by Source — tap to expand ────────────────────────
   const totalIn=mi.reduce((s,i)=>s+i.amount,0);
@@ -1061,6 +1033,35 @@ function renderReports(){
       <button onclick="document.getElementById('restoreFileInput').click()" style="background:linear-gradient(135deg,#3B0764,#1E1B4B);border:1px solid #A78BFA44;color:#A78BFA;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">📥 Restore</button>
       <input type="file" id="csvImportInput" accept=".csv,.txt,text/csv,text/plain,*/*" style="display:none" onchange="importCSV(this)"/>
       <input type="file" id="restoreFileInput" accept=".json,application/json,text/plain,*/*" style="display:none" onchange="importJSON(this)"/>
+    </div>
+  </div>`;
+
+  // Top balance cards
+  h+=`<div class="bal-row">
+    <div class="card" style="border-top:2px solid #34D399">
+      <div class="card-label">Cash In</div>
+      <div class="card-value" style="color:#34D399">${fmtShort(ti)}</div>
+    </div>
+    <div class="card" style="border-top:2px solid #F87171">
+      <div class="card-label">Expenses${tcp>0?" + CC":""}</div>
+      <div class="card-value" style="color:#F87171">${fmtShort(totalOut)}</div>
+    </div>
+  </div>
+  ${tcp>0?`<div style="padding:4px 14px 0;display:flex;gap:8px">
+    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
+      <span style="color:var(--muted)">Regular Expenses</span><span style="color:#F87171;font-weight:800">${fmt(te)}</span>
+    </div>
+    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
+      <span style="color:var(--muted)">CC Payments</span><span style="color:#F97316;font-weight:800">${fmt(tcp)}</span>
+    </div>
+  </div>`:""}
+  <div style="padding:8px 14px 0">
+    <div class="card" style="border-top:2px solid ${totalWallet>=0?"#60A5FA":"#F97316"};display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="card-label">Total Wallet Balance</div>
+        <div class="card-value" style="color:${totalWallet>=0?"#60A5FA":"#F97316"};font-size:18px">${fmt(totalWallet)}</div>
+      </div>
+      <div style="font-size:28px">💰</div>
     </div>
   </div>`;
 
