@@ -365,7 +365,7 @@ function addFabs(mainColor,mainFn,voiceCtx,showTransfer){
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDashboard(){
   const bec=byCat(mExp(),"category",S.expCats);
-  const mi=mInc();
+  const mi=mInc().filter(i=>!i.isCCPayment); // exclude CC bill payments — not real income
   const me=mExp();
   const te=tExp();
 
@@ -823,7 +823,7 @@ async function delInstallPay(instId,payId){
 
 // ─── CASH INFLOWS ────────────────────────────────────────────
 function renderIncome(){
-  const mi=mInc();
+  const mi=mInc().filter(i=>!i.isCCPayment);
   const transfers=(S.transfers||[]).filter(t=>mkey(new Date(t.date))===S.activeMonth);
 
   // ── Funds section (retained) ──────────────────────────────
@@ -1018,7 +1018,7 @@ async function submitFund(){
 // ─── REPORTS ─────────────────────────────────────────────────
 function renderReports(){
   const bec=byCat(mExp(),"category",S.expCats);
-  const te=tExp(),ti=tInc(),tcp=tInstallPay();
+  const te=tExp(),ti=mInc().filter(i=>!i.isCCPayment).reduce((s,i)=>s+i.amount,0),tcp=tInstallPay();
   const totalOut=te+tcp;
   const totalWallet=(S.funds||[]).reduce((s,f)=>s+getFundBalance(f.id,S.activeMonth),0);
   const me=mExp();

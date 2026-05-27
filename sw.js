@@ -1,4 +1,4 @@
-const CACHE = 'pesotrack-v2';
+const CACHE = 'pesotrack-v3';
 
 self.addEventListener('install', e => {
   e.waitUntil(
