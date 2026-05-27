@@ -214,7 +214,7 @@ const S={
   installments:[],
   expBeginBal:{}, // {catName: amount} — opening balance per expense category
   catsType:null,newCat:{name:"",icon:"📦",color:"#94A3B8"},showEmoji:false,
-  openReportCats:{},openInstalls:{},openCCs:{},
+  openReportCats:{},openInstalls:{},openCCs:{},openFunds:{},
 };
 
 // ─── HELPERS ─────────────────────────────────────────────────
@@ -368,7 +368,8 @@ function renderDashboard(){
   const totalOut=te+tcp;
   const totalWallet=(S.funds||[]).reduce((s,f)=>s+getFundBalance(f.id,S.activeMonth),0);
   const bec=byCat(mExp(),"category",S.expCats);
-  const bic=byCat(mInc(),"source",S.incCats);
+  const mi=mInc();
+  const me=mExp();
 
   let h=`<div class="bal-row">
     <div class="card" style="border-top:2px solid #34D399">
@@ -398,24 +399,93 @@ function renderDashboard(){
     </div>
   </div>`;
 
-  // Income sources
-  const incRows=S.incCats.filter(c=>bic[c.name]>0);
-  if(incRows.length){
-    h+=`<div class="sec"><div class="sec-title">💵 Cash Inflow Sources</div>`;
-    incRows.forEach(c=>{h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body"><div class="row-name">${c.name}</div></div><div class="row-amount" style="color:${c.color}">${fmt(bic[c.name])}</div></div>`;});
-    h+=`</div>`;
+  // ── Cash In by Source — tap to expand ────────────────────────
+  const totalIn=mi.reduce((s,i)=>s+i.amount,0);
+  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">💵 Cash In by Source</div></div>`;
+  if(!mi.length){
+    h+=`<div class="empty">No cash inflows this month.</div>`;
+  } else {
+    const catMap={};
+    mi.forEach(i=>{if(!catMap[i.source])catMap[i.source]={items:[],total:0};catMap[i.source].items.push(i);catMap[i.source].total+=i.amount;});
+    const incCats=Object.keys(catMap).sort((a,b)=>catMap[b].total-catMap[a].total);
+    const maxV=Math.max(...incCats.map(k=>catMap[k].total),1);
+    incCats.forEach(catName=>{
+      const{items,total}=catMap[catName];
+      const pct=totalIn>0?((total/totalIn)*100).toFixed(1):0;
+      const barPct=(total/maxV)*100;
+      const catDef=S.incCats.find(c=>c.name===catName)||{icon:"💵",color:"#34D399"};
+      const isOpen=!!(S.openReportCats["inc_"+catName]);
+      const sortedItems=[...items].sort((a,b)=>new Date(b.date)-new Date(a.date));
+      h+=`<div class="report-cat-row" onclick="toggleIncCat('${catName.replace(/'/g,"\\'")}')">
+        <div class="report-cat-header">
+          <span style="font-size:19px">${catDef.icon}</span>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:13px;font-weight:800">${catName}</span>
+              <span style="font-size:13px;font-weight:900;color:${catDef.color}">${fmt(total)}</span>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:1px">${pct}% of total · ${items.length} item${items.length!==1?"s":""}</div>
+            <div class="progress-track" style="margin-top:5px"><div class="progress-fill" style="width:${barPct}%;background:${catDef.color}"></div></div>
+          </div>
+          <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
+        </div>
+        <div class="report-cat-detail${isOpen?" open":""}">`;
+      sortedItems.forEach(i=>{
+        const fund=i.fundId?(S.funds||[]).find(f=>f.id===i.fundId):null;
+        const ftag=fund?` <span style="font-size:9px;background:#0F766E22;color:#34D399;border-radius:4px;padding:1px 4px;font-weight:700">→ ${fund.name}</span>`:"";
+        h+=`<div class="detail-item"><span>${i.date}${i.note?` · <span style="color:var(--muted)">${i.note}</span>`:" (no note)"}${ftag}</span>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span style="color:#34D399;font-weight:800">+${fmt(i.amount)}</span>
+            <button onclick="event.stopPropagation();openEditInc(${i.id})" style="background:none;border:none;color:#60A5FA;font-size:13px;cursor:pointer">✏️</button>
+            <button onclick="event.stopPropagation();delInc(${i.id})" style="background:none;border:none;color:#F87171;font-size:13px;cursor:pointer">🗑</button>
+          </div></div>`;
+      });
+      h+=`<div class="detail-item" style="font-weight:900;color:${catDef.color}"><span>Total</span><span>+${fmt(total)}</span></div></div></div>`;
+    });
+    h+=`<div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--surface);border-radius:12px;margin-bottom:7px;margin-top:4px">
+      <span style="font-size:13px;font-weight:900;color:#F8FAFC">💵 Total Cash In</span>
+      <span style="font-size:14px;font-weight:900;color:#34D399">${fmt(totalIn)}</span>
+    </div>`;
   }
+  h+=`</div>`;
 
-  // Expenses by category
+  // ── Expenses by Category — tap to expand ─────────────────────
   h+=`<div class="sec"><div class="sec-row"><div class="sec-title">📊 Expenses by Category</div><button class="btn-blue" onclick="openBudgets()">Budgets</button></div>`;
-  const rows=S.expCats.filter(c=>(bec[c.name]||0)>0||S.budgets[c.name]).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
-  if(!rows.length)h+=`<div class="empty">No expenses yet.</div>`;
-  rows.forEach(c=>{
-    const spent=bec[c.name]||0,budget=S.budgets[c.name]||0,pct=budget?(spent/budget)*100:0;
-    h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body">
-      <div style="display:flex;justify-content:space-between;align-items:center"><span class="row-name">${c.name}</span><span style="font-size:13px;font-weight:800;color:${c.color}">${fmt(spent)}${budget?` <span style="color:var(--muted);font-size:10px">/ ${fmt(budget)}</span>`:""}</span></div>
-      ${budget>0?`<div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,pct)}%;background:${pct>90?"#EF4444":c.color}"></div></div>`:""}
-    </div></div>`;
+  const catRows=S.expCats.filter(c=>(bec[c.name]||0)>0||S.budgets[c.name]).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
+  if(!catRows.length){h+=`<div class="empty">No expenses yet.</div>`;}
+  catRows.forEach(c=>{
+    const spent=bec[c.name]||0,budget=S.budgets[c.name]||0;
+    const pct=te>0?((spent/te)*100).toFixed(1):0;
+    const budgetPct=budget?(spent/budget)*100:0;
+    const catItems=me.filter(e=>e.category===c.name).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const isOpen=!!S.openReportCats[c.name];
+    h+=`<div class="report-cat-row" onclick="toggleReportCat('${c.name.replace(/'/g,"\\'")}')">
+      <div class="report-cat-header">
+        <span style="font-size:19px">${c.icon}</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;font-weight:800">${c.name}</span>
+            <span style="font-size:13px;font-weight:900;color:${c.color}">${fmt(spent)}${budget?` <span style="color:var(--muted);font-size:10px">/ ${fmt(budget)}</span>`:""}</span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:1px">${pct}% of total · ${catItems.length} item${catItems.length!==1?"s":""}</div>
+          <div class="progress-track" style="margin-top:5px"><div class="progress-fill" style="width:${budget?Math.min(100,budgetPct):pct}%;background:${budget&&budgetPct>90?"#EF4444":c.color}"></div></div>
+        </div>
+        <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
+      </div>
+      <div class="report-cat-detail${isOpen?" open":""}">`;
+    catItems.forEach(e=>{
+      const ccard=e.ccId?(S.creditCards||[]).find(cd=>cd.id===e.ccId):null;
+      const fund=e.fundId?(S.funds||[]).find(f=>f.id===e.fundId):null;
+      h+=`<div class="detail-item">
+        <span style="color:var(--text)">${e.date}${e.note?` · <span style="color:var(--muted)">${e.note}</span>`:" (no note)"}${ccard?` <span style="font-size:9px;color:${ccard.color}">💳 ${ccard.name}</span>`:""}${fund?` <span style="font-size:9px;color:#34D399">💳 ${fund.name}</span>`:""}</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span>
+          <button onclick="event.stopPropagation();openEditExp(${e.id})" style="background:none;border:none;color:#60A5FA;font-size:13px;cursor:pointer">✏️</button>
+          <button onclick="event.stopPropagation();delExp(${e.id})" style="background:none;border:none;color:#F87171;font-size:13px;cursor:pointer">🗑</button>
+        </div>
+      </div>`;
+    });
+    h+=`<div class="detail-item" style="font-weight:900;color:${c.color}"><span>Total</span><span>${fmt(spent)}</span></div></div></div>`;
   });
   h+=`</div>`;
   document.getElementById("content").innerHTML=h;
@@ -596,6 +666,7 @@ function monthsBetween(ym1,ym2){
 }
 function toggleInstall(id){S.openInstalls[id]=!S.openInstalls[id];renderExpenses();}
 function toggleCC(id){S.openCCs[id]=!S.openCCs[id];renderExpenses();}
+function toggleFundExpand(id){S.openFunds[id]=!S.openFunds[id];renderIncome();}
 
 // ─── INSTALLMENT FORM ─────────────────────────────────────────
 const INST_ICONS=["💳","🏦","🛒","📱","🚗","🏠","💊","📚","✈️","🎮","🛍️","💎","🔧","🏋️","💰"];
@@ -793,111 +864,60 @@ function renderIncome(){
   } else {
     S.funds.forEach(f=>{
       const carryBal=getFundBalance(f.id,S.activeMonth);
-      h+=`<div class="row" style="border-left:3px solid ${f.color}">
-        <span style="font-size:20px">${f.icon}</span>
-        <div class="row-body">
-          <div class="row-name">${f.name}</div>
-          <div style="font-size:10px;color:var(--muted)">Running balance</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:14px;font-weight:900;color:${carryBal>=0?"#60A5FA":"#F97316"}">${fmt(carryBal)}</div>
-        </div>
-      </div>`;
-    });
-  }
-  h+=`</div>`;
-
-  // ── Cash In by Category (collapsible) ────────────────────
-  const totalIn=mi.reduce((s,i)=>s+i.amount,0);
-  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">💵 Cash In by Source — tap to expand</div><button class="btn-gray" onclick="openCats('income')">⚙️ Cats</button></div>`;
-
-  if(!mi.length && !transfers.length){
-    h+=`<div class="empty">No cash inflows yet. Tap + to add.</div>`;
-  } else {
-    // Build per-source totals + item lists
-    const catMap={};
-    mi.forEach(i=>{
-      if(!catMap[i.source])catMap[i.source]={items:[],total:0};
-      catMap[i.source].items.push(i);
-      catMap[i.source].total+=i.amount;
-    });
-    const cats=Object.keys(catMap).sort((a,b)=>catMap[b].total-catMap[a].total);
-    const maxV=Math.max(...cats.map(k=>catMap[k].total),1);
-
-    cats.forEach(catName=>{
-      const {items,total}=catMap[catName];
-      const pct=totalIn>0?((total/totalIn)*100).toFixed(1):0;
-      const barPct=(total/maxV)*100;
-      const catDef=S.incCats.find(c=>c.name===catName)||{icon:"💵",color:"#34D399"};
-      const isOpen=!!(S.openReportCats["inc_"+catName]);
-      const sortedItems=[...items].sort((a,b)=>new Date(b.date)-new Date(a.date));
-
-      h+=`<div class="report-cat-row" onclick="toggleIncCat('${catName.replace(/'/g,"\\'")}')">
-        <div class="report-cat-header">
-          <span style="font-size:19px">${catDef.icon}</span>
+      const isOpen=!!S.openFunds[f.id];
+      // Transactions this month for this fund
+      const fundInc=mi.filter(i=>i.fundId===f.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
+      const fundExp=S.expenses.filter(e=>e.fundId===f.id&&mkey(new Date(e.date))===S.activeMonth).sort((a,b)=>new Date(b.date)-new Date(a.date));
+      const fundXfer=(S.transfers||[]).filter(t=>mkey(new Date(t.date))===S.activeMonth&&(t.toFundId===f.id||t.fromFundId===f.id)).sort((a,b)=>new Date(b.date)-new Date(a.date));
+      const hasActivity=fundInc.length||fundExp.length||fundXfer.length;
+      h+=`<div style="background:var(--surface);border-radius:12px;margin-bottom:7px;overflow:hidden;border-left:3px solid ${f.color}">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer" onclick="toggleFundExpand('${f.id}')">
+          <span style="font-size:20px">${f.icon}</span>
           <div style="flex:1">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <span style="font-size:13px;font-weight:800">${catName}</span>
-              <span style="font-size:13px;font-weight:900;color:${catDef.color}">${fmt(total)}</span>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:1px">${pct}% of total · ${items.length} item${items.length!==1?"s":""}</div>
-            <div class="progress-track" style="margin-top:5px"><div class="progress-fill" style="width:${barPct}%;background:${catDef.color}"></div></div>
+            <div style="font-size:13px;font-weight:800;color:var(--text)">${f.name}</div>
+            <div style="font-size:10px;color:var(--muted)">Running balance${hasActivity?` · ${fundInc.length+fundExp.length+fundXfer.length} transaction${fundInc.length+fundExp.length+fundXfer.length!==1?"s":""} this month`:""}</div>
           </div>
-          <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:14px;font-weight:900;color:${carryBal>=0?"#60A5FA":"#F97316"}">${fmt(carryBal)}</div>
+          </div>
+          <span style="color:var(--muted);font-size:13px;margin-left:4px">${isOpen?"▲":"▼"}</span>
         </div>
-        <div class="report-cat-detail${isOpen?" open":""}">`;
-
-      sortedItems.forEach(i=>{
-        const fund=i.fundId?(S.funds||[]).find(f=>f.id===i.fundId):null;
-        const ftag=fund?` <span style="font-size:9px;background:#0F766E22;color:#34D399;border-radius:4px;padding:1px 4px;font-weight:700">→ ${fund.name}</span>`:"";
-        h+=`<div class="detail-item">
-          <span>${i.date}${i.note?` · <span style="color:var(--muted)">${i.note}</span>`:" (no note)"}${ftag}</span>
-          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-            <span style="color:#34D399;font-weight:800">+${fmt(i.amount)}</span>
-            <button onclick="event.stopPropagation();openEditInc(${i.id})" style="background:none;border:none;color:#60A5FA;font-size:13px;cursor:pointer">✏️</button>
-            <button onclick="event.stopPropagation();delInc(${i.id})" style="background:none;border:none;color:#F87171;font-size:13px;cursor:pointer">🗑</button>
-          </div>
-        </div>`;
-      });
-
-      h+=`<div class="detail-item" style="font-weight:900;color:${catDef.color}"><span>Total</span><span>+${fmt(total)}</span></div>
+        <div class="report-cat-detail${isOpen?" open":""}">
+          ${!hasActivity?`<div style="padding:10px 12px;font-size:12px;color:var(--muted2);text-align:center">No transactions this month</div>`:""}
+          ${fundInc.length?`<div style="padding:4px 12px 2px;font-size:10px;color:#34D399;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">↓ Cash In</div>`:""}
+          ${fundInc.map(i=>`<div class="detail-item"><span style="color:var(--text)">${i.date}${i.note?` · <span style="color:var(--muted)">${i.note}</span>`:" (no note)"}<span style="font-size:9px;color:var(--muted);margin-left:4px">${i.source}</span></span><span style="color:#34D399;font-weight:800">+${fmt(i.amount)}</span></div>`).join("")}
+          ${fundExp.length?`<div style="padding:4px 12px 2px;font-size:10px;color:#F87171;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">↑ Expenses Out</div>`:""}
+          ${fundExp.map(e=>{const cat=S.expCats.find(x=>x.name===e.category)||{icon:"📦"};return`<div class="detail-item"><span style="color:var(--text)">${e.date} ${cat.icon} ${e.category}${e.note?` · <span style="color:var(--muted)">${e.note}</span>`:""}</span><span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span></div>`}).join("")}
+          ${fundXfer.length?`<div style="padding:4px 12px 2px;font-size:10px;color:#38BDF8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">🔄 Transfers</div>`:""}
+          ${fundXfer.map(t=>`<div class="detail-item"><span style="color:#38BDF8">${t.date} · ${t.fromFundId===f.id?`→ ${t.toFundName}`:`← ${t.fromFundName}`}${t.note?` · <span style="color:var(--muted)">${t.note}</span>`:""}</span><span style="color:#38BDF8;font-weight:800">${t.fromFundId===f.id?"-":"+"}${fmt(t.amount)}</span></div>`).join("")}
         </div>
       </div>`;
     });
-
-    // Grand total
-    if(cats.length){
-      h+=`<div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--surface);border-radius:12px;margin-bottom:7px;margin-top:4px">
-        <span style="font-size:13px;font-weight:900;color:#F8FAFC">💵 Total Cash In</span>
-        <span style="font-size:14px;font-weight:900;color:#34D399">${fmt(totalIn)}</span>
-      </div>`;
-    }
-
-    // Fund transfers this month
-    if(transfers.length){
-      h+=`<div style="margin-top:4px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">🔄 Fund Transfers</div>`;
-      transfers.forEach(t=>{
-        h+=`<div class="row" style="opacity:0.8"><span style="font-size:19px">🔄</span>
-          <div class="row-body">
-            <div class="row-name" style="color:#38BDF8">${t.fromFundName} → ${t.toFundName}</div>
-            ${t.note?`<div class="row-note">${t.note}</div>`:""}
-            <div class="row-date">${t.date}</div>
-          </div>
-          <div class="row-amount" style="color:#38BDF8">${fmt(t.amount)}</div>
-        </div>`;
-      });
-      h+=`</div>`;
-    }
   }
-
   h+=`</div>`;
+
+  // Fund transfers this month (summary row)
+  if(transfers.length){
+    h+=`<div class="sec"><div class="sec-title">🔄 Fund Transfers</div>`;
+    transfers.forEach(t=>{
+      h+=`<div class="row" style="opacity:0.8"><span style="font-size:19px">🔄</span>
+        <div class="row-body">
+          <div class="row-name" style="color:#38BDF8">${t.fromFundName} → ${t.toFundName}</div>
+          ${t.note?`<div class="row-note">${t.note}</div>`:""}
+          <div class="row-date">${t.date}</div>
+        </div>
+        <div class="row-amount" style="color:#38BDF8">${fmt(t.amount)}</div>
+      </div>`;
+    });
+    h+=`</div>`;
+  }
   document.getElementById("content").innerHTML=h;
   addFabs("#10B981",openAddInc,"income",false);
 }
 
 function toggleIncCat(name){
   S.openReportCats["inc_"+name]=!S.openReportCats["inc_"+name];
-  renderIncome();
+  renderDashboard();
 }
 
 // ─── FUND BALANCE CALCULATION ────────────────────────────────
@@ -906,9 +926,9 @@ function getFundBalance(fundId,uptoMonth){
   const fund=(S.funds||[]).find(f=>f.id===fundId);
   if(!fund)return 0;
   let bal=fund.initialBalance||0;
-  // Income tagged to this fund
+  // Income tagged to this fund (exclude CC payment entries — those only reduce CC outstanding, fund is debited via the paired expense)
   S.incomes.forEach(i=>{
-    if(i.fundId===fundId&&mkey(new Date(i.date))<=uptoMonth)bal+=i.amount;
+    if(i.fundId===fundId&&!i.isCCPayment&&mkey(new Date(i.date))<=uptoMonth)bal+=i.amount;
   });
   // Expenses paid from this fund (debit)
   S.expenses.forEach(e=>{
@@ -1064,46 +1084,14 @@ function renderReports(){
   });
   h+=`</div>`;
 
-  // Expense breakdown per category — expandable
-  h+=`<div class="sec-title" style="margin-bottom:10px">🗂️ Expenses by Category — tap to expand</div>`;
-  const catRows=S.expCats.filter(c=>(bec[c.name]||0)>0).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
-  if(!catRows.length){h+=`<div class="empty">No expense data for this month.</div>`;}
-  catRows.forEach(c=>{
-    const spent=bec[c.name]||0;
-    const pct=te>0?((spent/te)*100).toFixed(1):0;
-    const catItems=me.filter(e=>e.category===c.name).sort((a,b)=>new Date(b.date)-new Date(a.date));
-    const isOpen=!!S.openReportCats[c.name];
-    h+=`<div class="report-cat-row" onclick="toggleReportCat('${c.name.replace(/'/g,"\\'")}')">
-      <div class="report-cat-header">
-        <span style="font-size:19px">${c.icon}</span>
-        <div style="flex:1">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:13px;font-weight:800">${c.name}</span>
-            <span style="font-size:13px;font-weight:900;color:${c.color}">${fmt(spent)}</span>
-          </div>
-          <div style="font-size:10px;color:var(--muted);margin-top:1px">${pct}% of total · ${catItems.length} item${catItems.length!==1?"s":""}</div>
-          <div class="progress-track" style="margin-top:5px"><div class="progress-fill" style="width:${pct}%;background:${c.color}"></div></div>
-        </div>
-        <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
-      </div>
-      <div class="report-cat-detail${isOpen?" open":""}">`;
-    catItems.forEach(e=>{
-      h+=`<div class="detail-item">
-        <span style="color:var(--text)">${e.date} ${e.note?`· <span style="color:var(--muted)">${e.note}</span>`:"(no note)"}</span>
-        <span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span>
-      </div>`;
-    });
-    h+=`<div class="detail-item" style="font-weight:900;color:${c.color}"><span>Total</span><span>${fmt(spent)}</span></div>`;
-    h+=`</div></div>`;
-  });
-  h+=`</div>`;
+  h+=`<div style="padding:10px 14px;font-size:11px;color:var(--muted);text-align:center">Tap-to-expand breakdowns are on the Home tab</div>`;
   document.getElementById("content").innerHTML=h;
   removeFabs();
 }
 
 function toggleReportCat(name){
   S.openReportCats[name]=!S.openReportCats[name];
-  renderReports();
+  renderDashboard();
 }
 
 // ─── ADD EXPENSE ─────────────────────────────────────────────
@@ -1268,7 +1256,6 @@ async function submitCCPayment(ccId){
   const fundId=document.getElementById("ccPayFund")?.value||null;
   const card=(S.creditCards||[]).find(cd=>cd.id===ccId);
   const entry={id:Date.now(),amount:amt,source:"Credit Card Payment",note:`${card?.name||"CC"} payment${note?" — "+note:""}`,date,ccPayId:ccId,isCCPayment:true};
-  if(fundId)entry.fundId=fundId;
   S.incomes.push(entry);
   if(fundId){S.expenses.push({id:Date.now()+1,amount:amt,category:"Credit Card",note:`CC payment: ${card?.name||""}`,date,fundId,isCCPayment:true});}
   await persist();closeM("modalFunds");flash("✅ CC payment recorded!");render();
