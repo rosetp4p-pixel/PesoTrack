@@ -109,6 +109,23 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .cat-edit-row{display:flex;gap:7px;align-items:center;background:var(--surface);border-radius:11px;padding:9px 12px;margin-bottom:7px;}
 .cat-name-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;font-weight:700;font-family:'Nunito',sans-serif;outline:none;}
 .cat-name-input:focus{border-color:var(--accent);}
+/* VOICE */
+.voice-modal{position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:500;opacity:0;pointer-events:none;transition:opacity 0.22s;}
+.voice-modal.open{opacity:1;pointer-events:all;}
+.voice-box{background:var(--surface);border-radius:26px;padding:26px 20px 22px;width:calc(100% - 36px);max-width:360px;text-align:center;}
+.voice-orb{width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,#3B82F6,#7C3AED);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:36px;cursor:pointer;}
+.voice-orb.listening{animation:porb 1s ease-in-out infinite;}
+@keyframes porb{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.6);}50%{box-shadow:0 0 0 20px rgba(59,130,246,0);}}
+.voice-status{font-size:13px;font-weight:800;color:var(--muted);margin-bottom:9px;}
+.voice-transcript{font-size:13px;color:var(--text);min-height:42px;background:var(--surface2);border-radius:11px;padding:9px 13px;margin-bottom:9px;line-height:1.5;text-align:left;border:1px solid var(--border);}
+.voice-result{background:rgba(52,211,153,0.08);border:1px solid #34D39944;border-radius:11px;padding:11px 13px;margin-bottom:9px;font-size:13px;color:var(--green);text-align:left;display:none;line-height:1.6;}
+.voice-result.show{display:block;}
+.voice-tips{font-size:11px;color:var(--muted2);line-height:1.7;background:var(--surface2);border-radius:9px;padding:8px 11px;margin-bottom:13px;text-align:left;}
+.voice-btns{display:flex;gap:9px;}
+.voice-btns button{flex:1;padding:12px;border-radius:11px;border:none;font-size:13px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;}
+.vbtn-cancel{background:#334155;color:#CBD5E1;}
+.vbtn-retry{background:var(--accent);color:#fff;}
+.vbtn-confirm{background:var(--green);color:#0F172A;}
 /* INSTALLMENTS */
 .inst-card{background:var(--surface);border-radius:14px;padding:13px 14px;margin-bottom:9px;border-left:4px solid #94A3B8;}
 .inst-header{display:flex;align-items:center;gap:10px;cursor:pointer;}
@@ -178,7 +195,31 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="overlay" id="modalEditInc"><div class="sheet" id="sheetEditInc"></div></div>
 <div class="overlay" id="modalBeginBal"><div class="sheet" id="sheetBeginBal"></div></div>
 <div class="overlay" id="modalCreditCards"><div class="sheet" id="sheetCreditCards"></div></div>
-
+<!-- VOICE -->
+<div class="voice-modal" id="voiceModal">
+  <div class="voice-box">
+    <div style="font-size:15px;font-weight:900;color:#F8FAFC;margin-bottom:16px;">🎙️ Voice Entry</div>
+    <div class="voice-orb" id="voiceOrb" onclick="toggleListening()">🎙️</div>
+    <div class="voice-status" id="voiceStatus">Tap mic to start</div>
+    <div class="voice-transcript" id="voiceTranscript" style="color:var(--muted2);">Your voice will appear here…</div>
+    <div class="voice-result" id="voiceResult"></div>
+    <div id="voiceDateWrap" style="display:none;margin-bottom:9px;">
+      <div class="field-label" style="margin-bottom:4px;">📅 Date of transaction</div>
+      <input type="date" id="voiceDateInput" style="margin-bottom:0"/>
+    </div>
+    <div id="voiceFundWrap" style="display:none;margin-bottom:9px;">
+      <div class="field-label" style="margin-bottom:4px;">💳 Paid from / Charged to</div>
+      <select id="voicePayMode" style="margin-bottom:0">
+        <option value="">— Cash / Untracked —</option>
+      </select>
+    </div>
+    <div class="voice-tips">💡 Try: "Spent 250 on food" · "Paid 500 transport" · "Income 5000 salary" · Include date: "yesterday 300 groceries" · "April 23 food 500"</div>
+    <div class="voice-btns">
+      <button class="vbtn-cancel" onclick="closeVoice()">✕ Cancel</button>
+      <button class="vbtn-retry" id="voiceRetryBtn" onclick="retryVoice()" style="display:none">🔄 Retry</button>
+      <button class="vbtn-confirm" id="voiceConfirmBtn" onclick="confirmVoice()" style="display:none">✅ Save</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -214,7 +255,7 @@ const S={
   installments:[],
   expBeginBal:{}, // {catName: amount} — opening balance per expense category
   catsType:null,newCat:{name:"",icon:"📦",color:"#94A3B8"},showEmoji:false,
-  openReportCats:{},openInstalls:{},openCCs:{},openFunds:{},
+  openReportCats:{},openInstalls:{},
 };
 
 // ─── HELPERS ─────────────────────────────────────────────────
@@ -297,6 +338,7 @@ function closeM(id){document.getElementById(id).classList.remove("open");}
 ["modalAddExp","modalAddInc","modalBudgets","modalCats","modalTransfer","modalCatDetail","modalFunds","modalInstall","modalInstallPay","modalEditExp","modalEditInc","modalBeginBal","modalCreditCards"].forEach(id=>{
   document.getElementById(id).addEventListener("click",function(e){if(e.target===this)closeM(id);});
 });
+document.getElementById("voiceModal").addEventListener("click",function(e){if(e.target===this)closeVoice();});
 
 // ─── NAV ─────────────────────────────────────────────────────
 function renderNav(){
@@ -345,6 +387,13 @@ function removeFabs(){const f=document.getElementById("fabGroup");if(f)f.remove(
 function addFabs(mainColor,mainFn,voiceCtx,showTransfer){
   removeFabs();
   const g=document.createElement("div");g.id="fabGroup";g.className="fab-group";
+  // Voice
+  const vb=document.createElement("button");
+  vb.className="fab fab-sm";
+  vb.style.cssText=`background:linear-gradient(135deg,#5B21B6,#2563EB);box-shadow:0 3px 14px #5B21B677`;
+  vb.innerHTML="🎙️";vb.title="Voice";vb.onclick=()=>openVoice(voiceCtx);
+  const vl=document.createElement("div");vl.className="fab-lbl";vl.textContent="VOICE";
+  g.appendChild(vb);g.appendChild(vl);
   // Transfer btn
   if(showTransfer){
     const tb=document.createElement("button");
@@ -364,100 +413,63 @@ function addFabs(mainColor,mainFn,voiceCtx,showTransfer){
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDashboard(){
+  const bb=getBeginningBalance(S.activeMonth);
+  const ti=tInc(),te=tExp(),tcp=tInstallPay();
+  const totalOut=te+tcp;
+  const endBal=bb+ti-totalOut;
   const bec=byCat(mExp(),"category",S.expCats);
-  const mi=mInc().filter(i=>!i.isCCPayment); // exclude CC bill payments — not real income
-  const me=mExp();
-  const te=tExp();
+  const bic=byCat(mInc(),"source",S.incCats);
 
-  let h=``;
-
-  // ── Cash In by Source — tap to expand ────────────────────────
-  const totalIn=mi.reduce((s,i)=>s+i.amount,0);
-  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">💵 Cash In by Source</div></div>`;
-  if(!mi.length){
-    h+=`<div class="empty">No cash inflows this month.</div>`;
-  } else {
-    const catMap={};
-    mi.forEach(i=>{if(!catMap[i.source])catMap[i.source]={items:[],total:0};catMap[i.source].items.push(i);catMap[i.source].total+=i.amount;});
-    const incCats=Object.keys(catMap).sort((a,b)=>catMap[b].total-catMap[a].total);
-    const maxV=Math.max(...incCats.map(k=>catMap[k].total),1);
-    incCats.forEach(catName=>{
-      const{items,total}=catMap[catName];
-      const pct=totalIn>0?((total/totalIn)*100).toFixed(1):0;
-      const barPct=(total/maxV)*100;
-      const catDef=S.incCats.find(c=>c.name===catName)||{icon:"💵",color:"#34D399"};
-      const isOpen=!!(S.openReportCats["inc_"+catName]);
-      const sortedItems=[...items].sort((a,b)=>new Date(b.date)-new Date(a.date));
-      h+=`<div class="report-cat-row" onclick="toggleIncCat('${catName.replace(/'/g,"\\'")}')">
-        <div class="report-cat-header">
-          <span style="font-size:19px">${catDef.icon}</span>
-          <div style="flex:1">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <span style="font-size:13px;font-weight:800">${catName}</span>
-              <span style="font-size:13px;font-weight:900;color:${catDef.color}">${fmt(total)}</span>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:1px">${pct}% of total · ${items.length} item${items.length!==1?"s":""}</div>
-            <div class="progress-track" style="margin-top:5px"><div class="progress-fill" style="width:${barPct}%;background:${catDef.color}"></div></div>
-          </div>
-          <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
-        </div>
-        <div class="report-cat-detail${isOpen?" open":""}">`;
-      sortedItems.forEach(i=>{
-        const fund=i.fundId?(S.funds||[]).find(f=>f.id===i.fundId):null;
-        const ftag=fund?` <span style="font-size:9px;background:#0F766E22;color:#34D399;border-radius:4px;padding:1px 4px;font-weight:700">→ ${fund.name}</span>`:"";
-        h+=`<div class="detail-item"><span>${i.date}${i.note?` · <span style="color:var(--muted)">${i.note}</span>`:" (no note)"}${ftag}</span>
-          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-            <span style="color:#34D399;font-weight:800">+${fmt(i.amount)}</span>
-            <button onclick="event.stopPropagation();openEditInc(${i.id})" style="background:none;border:none;color:#60A5FA;font-size:13px;cursor:pointer">✏️</button>
-            <button onclick="event.stopPropagation();delInc(${i.id})" style="background:none;border:none;color:#F87171;font-size:13px;cursor:pointer">🗑</button>
-          </div></div>`;
-      });
-      h+=`<div class="detail-item" style="font-weight:900;color:${catDef.color}"><span>Total</span><span>+${fmt(total)}</span></div></div></div>`;
-    });
-    h+=`<div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--surface);border-radius:12px;margin-bottom:7px;margin-top:4px">
-      <span style="font-size:13px;font-weight:900;color:#F8FAFC">💵 Total Cash In</span>
-      <span style="font-size:14px;font-weight:900;color:#34D399">${fmt(totalIn)}</span>
-    </div>`;
-  }
-  h+=`</div>`;
-
-  // ── Expenses by Category — tap to expand ─────────────────────
-  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">📊 Expenses by Category</div><button class="btn-blue" onclick="openBudgets()">Budgets</button></div>`;
-  const catRows=S.expCats.filter(c=>(bec[c.name]||0)>0||S.budgets[c.name]).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
-  if(!catRows.length){h+=`<div class="empty">No expenses yet.</div>`;}
-  catRows.forEach(c=>{
-    const spent=bec[c.name]||0,budget=S.budgets[c.name]||0;
-    const pct=te>0?((spent/te)*100).toFixed(1):0;
-    const budgetPct=budget?(spent/budget)*100:0;
-    const catItems=me.filter(e=>e.category===c.name).sort((a,b)=>new Date(b.date)-new Date(a.date));
-    const isOpen=!!S.openReportCats[c.name];
-    h+=`<div class="report-cat-row" onclick="toggleReportCat('${c.name.replace(/'/g,"\\'")}')">
-      <div class="report-cat-header">
-        <span style="font-size:19px">${c.icon}</span>
-        <div style="flex:1">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:13px;font-weight:800">${c.name}</span>
-            <span style="font-size:13px;font-weight:900;color:${c.color}">${fmt(spent)}${budget?` <span style="color:var(--muted);font-size:10px">/ ${fmt(budget)}</span>`:""}</span>
-          </div>
-          <div style="font-size:10px;color:var(--muted);margin-top:1px">${pct}% of total · ${catItems.length} item${catItems.length!==1?"s":""}</div>
-          <div class="progress-track" style="margin-top:5px"><div class="progress-fill" style="width:${budget?Math.min(100,budgetPct):pct}%;background:${budget&&budgetPct>90?"#EF4444":c.color}"></div></div>
-        </div>
-        <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
+  let h=`<div class="bal-row">
+    <div class="card" style="border-top:2px solid #A78BFA">
+      <div class="card-label">Beg Balance</div>
+      <div class="card-value" style="color:#A78BFA">${fmtShort(bb)}</div>
+    </div>
+    <div class="card" style="border-top:2px solid #34D399">
+      <div class="card-label">Cash In</div>
+      <div class="card-value" style="color:#34D399">${fmtShort(ti)}</div>
+    </div>
+    <div class="card" style="border-top:2px solid #F87171">
+      <div class="card-label">Expenses${tcp>0?" + CC":""}</div>
+      <div class="card-value" style="color:#F87171">${fmtShort(totalOut)}</div>
+    </div>
+  </div>
+  ${tcp>0?`<div style="padding:4px 14px 0;display:flex;gap:8px">
+    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
+      <span style="color:var(--muted)">Regular Expenses</span><span style="color:#F87171;font-weight:800">${fmt(te)}</span>
+    </div>
+    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
+      <span style="color:var(--muted)">CC Payments</span><span style="color:#F97316;font-weight:800">${fmt(tcp)}</span>
+    </div>
+  </div>`:""}
+  <div style="padding:8px 14px 0">
+    <div class="card" style="border-top:2px solid ${endBal>=0?"#60A5FA":"#F97316"};display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="card-label">Ending Balance (forwarded next month)</div>
+        <div class="card-value" style="color:${endBal>=0?"#60A5FA":"#F97316"};font-size:18px">${fmt(endBal)}</div>
       </div>
-      <div class="report-cat-detail${isOpen?" open":""}">`;
-    catItems.forEach(e=>{
-      const ccard=e.ccId?(S.creditCards||[]).find(cd=>cd.id===e.ccId):null;
-      const fund=e.fundId?(S.funds||[]).find(f=>f.id===e.fundId):null;
-      h+=`<div class="detail-item">
-        <span style="color:var(--text)">${e.date}${e.note?` · <span style="color:var(--muted)">${e.note}</span>`:" (no note)"}${ccard?` <span style="font-size:9px;color:${ccard.color}">💳 ${ccard.name}</span>`:""}${fund?` <span style="font-size:9px;color:#34D399">💳 ${fund.name}</span>`:""}</span>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span>
-          <button onclick="event.stopPropagation();openEditExp(${e.id})" style="background:none;border:none;color:#60A5FA;font-size:13px;cursor:pointer">✏️</button>
-          <button onclick="event.stopPropagation();delExp(${e.id})" style="background:none;border:none;color:#F87171;font-size:13px;cursor:pointer">🗑</button>
-        </div>
-      </div>`;
-    });
-    h+=`<div class="detail-item" style="font-weight:900;color:${c.color}"><span>Total</span><span>${fmt(spent)}</span></div></div></div>`;
+      <div style="font-size:28px">💰</div>
+    </div>
+  </div>`;
+
+  // Income sources
+  const incRows=S.incCats.filter(c=>bic[c.name]>0);
+  if(incRows.length){
+    h+=`<div class="sec"><div class="sec-title">💵 Cash Inflow Sources</div>`;
+    incRows.forEach(c=>{h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body"><div class="row-name">${c.name}</div></div><div class="row-amount" style="color:${c.color}">${fmt(bic[c.name])}</div></div>`;});
+    h+=`</div>`;
+  }
+
+  // Expenses by category
+  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">📊 Expenses by Category</div><div style="display:flex;gap:6px"><button class="btn-gray" onclick="openBeginBal()" style="font-size:10px">📊 Beg Bal</button><button class="btn-blue" onclick="openBudgets()">Budgets</button></div></div>`;
+  const rows=S.expCats.filter(c=>(bec[c.name]||0)>0||S.budgets[c.name]).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
+  if(!rows.length)h+=`<div class="empty">No expenses yet.</div>`;
+  rows.forEach(c=>{
+    const spent=bec[c.name]||0,budget=S.budgets[c.name]||0,pct=budget?(spent/budget)*100:0;
+    h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body">
+      <div style="display:flex;justify-content:space-between;align-items:center"><span class="row-name">${c.name}</span><span style="font-size:13px;font-weight:800;color:${c.color}">${fmt(spent)}${budget?` <span style="color:var(--muted);font-size:10px">/ ${fmt(budget)}</span>`:""}</span></div>
+      ${budget>0?`<div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,pct)}%;background:${pct>90?"#EF4444":c.color}"></div></div>`:""}
+    </div></div>`;
   });
   h+=`</div>`;
   document.getElementById("content").innerHTML=h;
@@ -472,70 +484,22 @@ function renderExpenses(){
   // ── Installments / Payables summary ──
   let h=`<div class="sec"><div class="sec-row"><div class="sec-title">💳 Credit & Installments</div><div style="display:flex;gap:6px"><button class="btn-gray" onclick="openCreditCards()" style="font-size:10px">🪪 Cards</button><button class="btn-blue" onclick="openInstallForm()">+ Payable</button></div></div>`;
 
-  {
-    const ccCards=S.creditCards||[];
-    if(!installs.length&&!ccCards.length){
-      h+=`<div style="background:var(--surface);border-radius:12px;padding:14px;text-align:center;margin-bottom:4px;">
-        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Track credit cards, loans, and installment payables</div>
-        <button class="btn-blue" onclick="openInstallForm()">+ Add Payable</button>
-      </div>`;
-    } else {
-    // Totals bar — includes both installments and CC outstanding
-    const totalCCOustanding=ccCards.reduce((s,cd)=>s+getCCBalance(cd.id,S.activeMonth),0);
-    const totalCCThisMonth=ccCards.reduce((s,cd)=>s+getCCThisMonth(cd.id),0);
-    const totalOwe=installs.reduce((s,x)=>s+installRemaining(x),0)+totalCCOustanding;
-    const totalMonthly=installs.filter(x=>installRemaining(x)>0).reduce((s,x)=>s+x.monthlyAmount,0)+totalCCThisMonth;
+  if(!installs.length){
+    h+=`<div style="background:var(--surface);border-radius:12px;padding:14px;text-align:center;margin-bottom:4px;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Track credit cards, loans, and installment payables</div>
+      <button class="btn-blue" onclick="openInstallForm()">+ Add Payable</button>
+    </div>`;
+  } else {
+    // Totals bar
+    const totalOwe=installs.reduce((s,x)=>s+installRemaining(x),0);
+    const totalMonthly=installs.filter(x=>installRemaining(x)>0).reduce((s,x)=>s+x.monthlyAmount,0);
     h+=`<div class="inst-summary-bar">
       <div><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">Total Outstanding</div><div style="font-size:16px;font-weight:900;color:#F87171">${fmt(totalOwe)}</div></div>
       <div style="text-align:right"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">Monthly Due</div><div style="font-size:16px;font-weight:900;color:#FFE66D">${fmt(totalMonthly)}</div></div>
     </div>`;
 
-    // ── Credit Card cards ──
-    if(ccCards.length){
-      h+=`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 2px 6px">💳 Credit Cards</div>`;
-      ccCards.forEach(cd=>{
-        const thisM=getCCThisMonth(cd.id);
-        const outstanding=getCCBalance(cd.id,S.activeMonth);
-        const pct=cd.limit>0?Math.min(100,(outstanding/cd.limit)*100):0;
-        const isOpen=!!S.openCCs[cd.id];
-        const thisMonthExps=S.expenses.filter(e=>e.ccId===cd.id&&mkey(new Date(e.date))===S.activeMonth).sort((a,b)=>new Date(b.date)-new Date(a.date));
-        h+=`<div class="inst-card" style="border-left-color:${cd.color}">
-          <div class="inst-header" onclick="toggleCC('${cd.id}')">
-            <span style="font-size:22px">${cd.icon}</span>
-            <div class="inst-body">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                <div>
-                  <div class="inst-name">${cd.name}</div>
-                  <div class="inst-sub">${thisM>0?`This month: ${fmt(thisM)}`:"No charges this month"}${outstanding>0?` · Outstanding: ${fmt(outstanding)}`:""}</div>
-                </div>
-                <span style="color:var(--muted);font-size:13px;margin-left:8px;flex-shrink:0">${isOpen?"▲":"▼"}</span>
-              </div>
-              ${cd.limit>0?`<div class="inst-progress"><div class="inst-bar" style="width:${pct}%;background:${pct>90?"#EF4444":cd.color}"></div></div>`:""}
-              <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:10px;color:var(--muted)">
-                <span>Charged: <strong style="color:#F87171">${fmt(thisM)}</strong></span>
-                ${cd.limit>0?`<span>${pct.toFixed(0)}% of limit</span>`:""}
-                <span>Unpaid: <strong style="color:${outstanding>0?"#F97316":"#34D399"}">${fmt(outstanding)}</strong></span>
-              </div>
-            </div>
-          </div>
-          <div class="inst-detail${isOpen?" open":""}">
-            <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">This Month's Charges</div>
-            ${thisMonthExps.length?thisMonthExps.map(e=>{
-              const cat=S.expCats.find(x=>x.name===e.category)||{icon:"📦"};
-              return`<div class="pay-row"><div><span style="font-size:13px">${cat.icon}</span> <span style="color:var(--text);font-weight:700">${e.category}</span>${e.note?`<span style="color:var(--muted)"> · ${e.note}</span>`:""}<span style="font-size:9px;color:var(--muted);margin-left:4px">${e.date}</span></div><span style="color:#F87171;font-weight:900">-${fmt(e.amount)}</span></div>`;
-            }).join(""):`<div style="color:var(--muted2);font-size:12px;text-align:center;padding:8px 0">No charges this month</div>`}
-            <div style="display:flex;gap:8px;margin-top:10px">
-              <button class="btn-full" style="background:#10B981;font-size:12px;padding:9px" onclick="openCCPayment('${cd.id}')">💰 Record Payment</button>
-              <button class="btn-gray" style="font-size:12px;padding:9px 12px" onclick="openCreditCards()">⚙️</button>
-            </div>
-          </div>
-        </div>`;
-      });
-    }
-
-    // ── Installment Payables ──
-    if(installs.length) h+=`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 2px 6px">📋 Installment Payables</div>`;
-    installs.forEach(inst=>{const paid=installPaid(inst);
+    installs.forEach(inst=>{
+      const paid=installPaid(inst);
       const remaining=installRemaining(inst);
       const pct=inst.totalAmount>0?Math.min(100,(paid/inst.totalAmount)*100):0;
       const isDone=remaining<=0;
@@ -593,7 +557,6 @@ function renderExpenses(){
         </div>
       </div>`;
     });
-    } // end else (has installs or CC cards)
   }
   h+=`</div>`;
 
@@ -602,12 +565,13 @@ function renderExpenses(){
   if(!me.length)h+=`<div class="empty">No expenses. Tap + to add.</div>`;
   me.forEach(e=>{
     const c=S.expCats.find(x=>x.name===e.category)||{icon:"📦",color:"#94A3B8"};
+    const vtag=e.viaVoice?`<span style="font-size:9px;background:#3B82F622;color:#60A5FA;border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">🎙️</span>`:"";
     const fund=e.fundId?(S.funds||[]).find(f=>f.id===e.fundId):null;
     const ftag=fund?`<span style="font-size:9px;background:#0F766E22;color:#34D399;border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">💳 ${fund.name}</span>`:"";
     const inst=e.installId?(S.installments||[]).find(x=>x.id===e.installId):null;
     const itag=inst?`<span style="font-size:9px;background:#F8717122;color:#F87171;border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">📋 ${inst.name}</span>`:""
 ;    const ccard=e.ccId?(S.creditCards||[]).find(cd=>cd.id===e.ccId):null;
-    h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body"><div class="row-name">${e.category}${ftag}${itag}${ccard?`<span style="font-size:9px;background:${ccard.color}22;color:${ccard.color};border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">💳 ${ccard.name.replace("Credit Card","CC")}</span>`:""}</div>${e.note?`<div class="row-note">${e.note}</div>`:""}<div class="row-date">${e.date}</div></div><div class="row-amount" style="color:#F87171">-${fmt(e.amount)}</div><button style="background:none;border:none;color:#60A5FA;font-size:14px;cursor:pointer;padding:0 3px;flex-shrink:0" onclick="openEditExp(${e.id})">✏️</button><button class="del-btn" onclick="delExp(${e.id})">🗑</button></div>`;
+    h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body"><div class="row-name">${e.category}${vtag}${ftag}${itag}${ccard?`<span style="font-size:9px;background:${ccard.color}22;color:${ccard.color};border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">💳 ${ccard.name.replace("Credit Card","CC")}</span>`:""}</div>${e.note?`<div class="row-note">${e.note}</div>`:""}<div class="row-date">${e.date}</div></div><div class="row-amount" style="color:#F87171">-${fmt(e.amount)}</div><button style="background:none;border:none;color:#60A5FA;font-size:14px;cursor:pointer;padding:0 3px;flex-shrink:0" onclick="openEditExp(${e.id})">✏️</button><button class="del-btn" onclick="delExp(${e.id})">🗑</button></div>`;
   });
   // Transfer entries from fund transfers
   (S.transfers||[]).filter(t=>mkey(new Date(t.date))===S.activeMonth).forEach(t=>{
@@ -637,8 +601,6 @@ function monthsBetween(ym1,ym2){
   return Math.max(0,(y2-y1)*12+(m2-m1));
 }
 function toggleInstall(id){S.openInstalls[id]=!S.openInstalls[id];renderExpenses();}
-function toggleCC(id){S.openCCs[id]=!S.openCCs[id];renderExpenses();}
-function toggleFundExpand(id){S.openFunds[id]=!S.openFunds[id];renderIncome();}
 
 // ─── INSTALLMENT FORM ─────────────────────────────────────────
 const INST_ICONS=["💳","🏦","🛒","📱","🚗","🏠","💊","📚","✈️","🎮","🛍️","💎","🔧","🏋️","💰"];
@@ -823,7 +785,7 @@ async function delInstallPay(instId,payId){
 
 // ─── CASH INFLOWS ────────────────────────────────────────────
 function renderIncome(){
-  const mi=mInc().filter(i=>!i.isCCPayment);
+  const mi=mInc();
   const transfers=(S.transfers||[]).filter(t=>mkey(new Date(t.date))===S.activeMonth);
 
   // ── Funds section (retained) ──────────────────────────────
@@ -836,60 +798,111 @@ function renderIncome(){
   } else {
     S.funds.forEach(f=>{
       const carryBal=getFundBalance(f.id,S.activeMonth);
-      const isOpen=!!S.openFunds[f.id];
-      // Transactions this month for this fund
-      const fundInc=mi.filter(i=>i.fundId===f.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
-      const fundExp=S.expenses.filter(e=>e.fundId===f.id&&mkey(new Date(e.date))===S.activeMonth).sort((a,b)=>new Date(b.date)-new Date(a.date));
-      const fundXfer=(S.transfers||[]).filter(t=>mkey(new Date(t.date))===S.activeMonth&&(t.toFundId===f.id||t.fromFundId===f.id)).sort((a,b)=>new Date(b.date)-new Date(a.date));
-      const hasActivity=fundInc.length||fundExp.length||fundXfer.length;
-      h+=`<div style="background:var(--surface);border-radius:12px;margin-bottom:7px;overflow:hidden;border-left:3px solid ${f.color}">
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer" onclick="toggleFundExpand('${f.id}')">
-          <span style="font-size:20px">${f.icon}</span>
-          <div style="flex:1">
-            <div style="font-size:13px;font-weight:800;color:var(--text)">${f.name}</div>
-            <div style="font-size:10px;color:var(--muted)">Running balance${hasActivity?` · ${fundInc.length+fundExp.length+fundXfer.length} transaction${fundInc.length+fundExp.length+fundXfer.length!==1?"s":""} this month`:""}</div>
-          </div>
-          <div style="text-align:right;flex-shrink:0">
-            <div style="font-size:14px;font-weight:900;color:${carryBal>=0?"#60A5FA":"#F97316"}">${fmt(carryBal)}</div>
-          </div>
-          <span style="color:var(--muted);font-size:13px;margin-left:4px">${isOpen?"▲":"▼"}</span>
+      h+=`<div class="row" style="border-left:3px solid ${f.color}">
+        <span style="font-size:20px">${f.icon}</span>
+        <div class="row-body">
+          <div class="row-name">${f.name}</div>
+          <div style="font-size:10px;color:var(--muted)">Running balance</div>
         </div>
-        <div class="report-cat-detail${isOpen?" open":""}">
-          ${!hasActivity?`<div style="padding:10px 12px;font-size:12px;color:var(--muted2);text-align:center">No transactions this month</div>`:""}
-          ${fundInc.length?`<div style="padding:4px 12px 2px;font-size:10px;color:#34D399;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">↓ Cash In</div>`:""}
-          ${fundInc.map(i=>`<div class="detail-item"><span style="color:var(--text)">${i.date}${i.note?` · <span style="color:var(--muted)">${i.note}</span>`:" (no note)"}<span style="font-size:9px;color:var(--muted);margin-left:4px">${i.source}</span></span><span style="color:#34D399;font-weight:800">+${fmt(i.amount)}</span></div>`).join("")}
-          ${fundExp.length?`<div style="padding:4px 12px 2px;font-size:10px;color:#F87171;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">↑ Expenses Out</div>`:""}
-          ${fundExp.map(e=>{const cat=S.expCats.find(x=>x.name===e.category)||{icon:"📦"};return`<div class="detail-item"><span style="color:var(--text)">${e.date} ${cat.icon} ${e.category}${e.note?` · <span style="color:var(--muted)">${e.note}</span>`:""}</span><span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span></div>`}).join("")}
-          ${fundXfer.length?`<div style="padding:4px 12px 2px;font-size:10px;color:#38BDF8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">🔄 Transfers</div>`:""}
-          ${fundXfer.map(t=>`<div class="detail-item"><span style="color:#38BDF8">${t.date} · ${t.fromFundId===f.id?`→ ${t.toFundName}`:`← ${t.fromFundName}`}${t.note?` · <span style="color:var(--muted)">${t.note}</span>`:""}</span><span style="color:#38BDF8;font-weight:800">${t.fromFundId===f.id?"-":"+"}${fmt(t.amount)}</span></div>`).join("")}
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:14px;font-weight:900;color:${carryBal>=0?"#60A5FA":"#F97316"}">${fmt(carryBal)}</div>
         </div>
       </div>`;
     });
   }
   h+=`</div>`;
 
-  // Fund transfers this month (summary row)
-  if(transfers.length){
-    h+=`<div class="sec"><div class="sec-title">🔄 Fund Transfers</div>`;
-    transfers.forEach(t=>{
-      h+=`<div class="row" style="opacity:0.8"><span style="font-size:19px">🔄</span>
-        <div class="row-body">
-          <div class="row-name" style="color:#38BDF8">${t.fromFundName} → ${t.toFundName}</div>
-          ${t.note?`<div class="row-note">${t.note}</div>`:""}
-          <div class="row-date">${t.date}</div>
+  // ── Cash In by Category (collapsible) ────────────────────
+  const totalIn=mi.reduce((s,i)=>s+i.amount,0);
+  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">💵 Cash In by Source — tap to expand</div><button class="btn-gray" onclick="openCats('income')">⚙️ Cats</button></div>`;
+
+  if(!mi.length && !transfers.length){
+    h+=`<div class="empty">No cash inflows yet. Tap + to add.</div>`;
+  } else {
+    // Build per-source totals + item lists
+    const catMap={};
+    mi.forEach(i=>{
+      if(!catMap[i.source])catMap[i.source]={items:[],total:0};
+      catMap[i.source].items.push(i);
+      catMap[i.source].total+=i.amount;
+    });
+    const cats=Object.keys(catMap).sort((a,b)=>catMap[b].total-catMap[a].total);
+    const maxV=Math.max(...cats.map(k=>catMap[k].total),1);
+
+    cats.forEach(catName=>{
+      const {items,total}=catMap[catName];
+      const pct=totalIn>0?((total/totalIn)*100).toFixed(1):0;
+      const barPct=(total/maxV)*100;
+      const catDef=S.incCats.find(c=>c.name===catName)||{icon:"💵",color:"#34D399"};
+      const isOpen=!!(S.openReportCats["inc_"+catName]);
+      const sortedItems=[...items].sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+      h+=`<div class="report-cat-row" onclick="toggleIncCat('${catName.replace(/'/g,"\\'")}')">
+        <div class="report-cat-header">
+          <span style="font-size:19px">${catDef.icon}</span>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:13px;font-weight:800">${catName}</span>
+              <span style="font-size:13px;font-weight:900;color:${catDef.color}">${fmt(total)}</span>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:1px">${pct}% of total · ${items.length} item${items.length!==1?"s":""}</div>
+            <div class="progress-track" style="margin-top:5px"><div class="progress-fill" style="width:${barPct}%;background:${catDef.color}"></div></div>
+          </div>
+          <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
         </div>
-        <div class="row-amount" style="color:#38BDF8">${fmt(t.amount)}</div>
+        <div class="report-cat-detail${isOpen?" open":""}">`;
+
+      sortedItems.forEach(i=>{
+        const fund=i.fundId?(S.funds||[]).find(f=>f.id===i.fundId):null;
+        const ftag=fund?` <span style="font-size:9px;background:#0F766E22;color:#34D399;border-radius:4px;padding:1px 4px;font-weight:700">→ ${fund.name}</span>`:"";
+        h+=`<div class="detail-item">
+          <span>${i.date}${i.note?` · <span style="color:var(--muted)">${i.note}</span>`:" (no note)"}${ftag}</span>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span style="color:#34D399;font-weight:800">+${fmt(i.amount)}</span>
+            <button onclick="event.stopPropagation();openEditInc(${i.id})" style="background:none;border:none;color:#60A5FA;font-size:13px;cursor:pointer">✏️</button>
+            <button onclick="event.stopPropagation();delInc(${i.id})" style="background:none;border:none;color:#F87171;font-size:13px;cursor:pointer">🗑</button>
+          </div>
+        </div>`;
+      });
+
+      h+=`<div class="detail-item" style="font-weight:900;color:${catDef.color}"><span>Total</span><span>+${fmt(total)}</span></div>
+        </div>
       </div>`;
     });
-    h+=`</div>`;
+
+    // Grand total
+    if(cats.length){
+      h+=`<div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--surface);border-radius:12px;margin-bottom:7px;margin-top:4px">
+        <span style="font-size:13px;font-weight:900;color:#F8FAFC">💵 Total Cash In</span>
+        <span style="font-size:14px;font-weight:900;color:#34D399">${fmt(totalIn)}</span>
+      </div>`;
+    }
+
+    // Fund transfers this month
+    if(transfers.length){
+      h+=`<div style="margin-top:4px"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">🔄 Fund Transfers</div>`;
+      transfers.forEach(t=>{
+        h+=`<div class="row" style="opacity:0.8"><span style="font-size:19px">🔄</span>
+          <div class="row-body">
+            <div class="row-name" style="color:#38BDF8">${t.fromFundName} → ${t.toFundName}</div>
+            ${t.note?`<div class="row-note">${t.note}</div>`:""}
+            <div class="row-date">${t.date}</div>
+          </div>
+          <div class="row-amount" style="color:#38BDF8">${fmt(t.amount)}</div>
+        </div>`;
+      });
+      h+=`</div>`;
+    }
   }
+
+  h+=`</div>`;
   document.getElementById("content").innerHTML=h;
   addFabs("#10B981",openAddInc,"income",false);
 }
 
 function toggleIncCat(name){
   S.openReportCats["inc_"+name]=!S.openReportCats["inc_"+name];
-  renderDashboard();
+  renderIncome();
 }
 
 // ─── FUND BALANCE CALCULATION ────────────────────────────────
@@ -898,9 +911,9 @@ function getFundBalance(fundId,uptoMonth){
   const fund=(S.funds||[]).find(f=>f.id===fundId);
   if(!fund)return 0;
   let bal=fund.initialBalance||0;
-  // Income tagged to this fund (exclude CC payment entries — those only reduce CC outstanding, fund is debited via the paired expense)
+  // Income tagged to this fund
   S.incomes.forEach(i=>{
-    if(i.fundId===fundId&&!i.isCCPayment&&mkey(new Date(i.date))<=uptoMonth)bal+=i.amount;
+    if(i.fundId===fundId&&mkey(new Date(i.date))<=uptoMonth)bal+=i.amount;
   });
   // Expenses paid from this fund (debit)
   S.expenses.forEach(e=>{
@@ -939,6 +952,10 @@ function drawFunds(){
     funds.forEach((f,idx)=>{
       const bal=getFundBalance(f.id,mkey(new Date()));
       h+=`<div class="cat-edit-row" style="flex-wrap:wrap;gap:6px">
+        <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+          <button onclick="moveFund(${idx},-1)" style="background:var(--surface2);border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:11px;color:var(--text);opacity:${idx===0?'0.3':'1'}" ${idx===0?'disabled':''}>▲</button>
+          <button onclick="moveFund(${idx},1)" style="background:var(--surface2);border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:11px;color:var(--text);opacity:${idx===funds.length-1?'0.3':'1'}" ${idx===funds.length-1?'disabled':''}>▼</button>
+        </div>
         <span style="font-size:20px">${f.icon}</span>
         <input class="cat-name-input" style="min-width:80px;flex:1" value="${f.name}" onchange="renameFund(${idx},this.value)" placeholder="Fund name"/>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -998,6 +1015,13 @@ async function delFund(idx){
   S.funds.splice(idx,1);
   await persist();flash("🗑️ Fund removed");drawFunds();
 }
+async function moveFund(idx,dir){
+  const arr=S.funds;
+  const to=idx+dir;
+  if(to<0||to>=arr.length)return;
+  [arr[idx],arr[to]]=[arr[to],arr[idx]];
+  await persist();drawFunds();
+}
 function setNewFundIcon(ic){S._nfIcon=ic;drawFunds();}
 async function submitFund(){
   const name=document.getElementById("nfName")?.value.trim();
@@ -1018,62 +1042,32 @@ async function submitFund(){
 // ─── REPORTS ─────────────────────────────────────────────────
 function renderReports(){
   const bec=byCat(mExp(),"category",S.expCats);
-  const te=tExp(),ti=mInc().filter(i=>!i.isCCPayment).reduce((s,i)=>s+i.amount,0),tcp=tInstallPay();
+  const te=tExp(),ti=tInc(),tcp=tInstallPay();
   const totalOut=te+tcp;
-  const totalWallet=(S.funds||[]).reduce((s,f)=>s+getFundBalance(f.id,S.activeMonth),0);
+  const bb=getBeginningBalance(S.activeMonth);
+  const endBal=bb+ti-totalOut;
   const me=mExp();
   const days=new Date(S.activeMonth.split("-")[0],S.activeMonth.split("-")[1],0).getDate();
-  // Export bar
-  let h=`<div style="padding:12px 14px 0;display:flex;justify-content:space-between;align-items:center">
+  // Export/Import bar
+  let h=`<div style="padding:12px 14px 0;display:flex;justify-content:space-between;align-items:center;gap:8px">
     <div style="font-size:13px;font-weight:800;color:#F8FAFC">${mlabelFull(S.activeMonth)}</div>
-    <div style="display:flex;gap:7px">
-      <button onclick="exportCSV()" style="background:linear-gradient(135deg,#0F766E,#065F46);border:none;color:#fff;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">⬇️ CSV</button>
+    <div style="display:flex;gap:6px">
+      <button onclick="exportCSV()" style="background:linear-gradient(135deg,#0F766E,#065F46);border:none;color:#fff;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">⬇️ Export</button>
       <button onclick="document.getElementById('csvImportInput').click()" style="background:linear-gradient(135deg,#1E40AF,#1E3A8A);border:none;color:#fff;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">⬆️ Import</button>
-      <button onclick="exportJSON()" style="background:linear-gradient(135deg,#1E3A5F,#0F172A);border:1px solid #3B82F644;color:#60A5FA;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">📦 Backup</button>
-      <button onclick="document.getElementById('restoreFileInput').click()" style="background:linear-gradient(135deg,#3B0764,#1E1B4B);border:1px solid #A78BFA44;color:#A78BFA;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">📥 Restore</button>
-      <input type="file" id="csvImportInput" accept=".csv,.txt,text/csv,text/plain,*/*" style="display:none" onchange="importCSV(this)"/>
-      <input type="file" id="restoreFileInput" accept=".json,application/json,text/plain,*/*" style="display:none" onchange="importJSON(this)"/>
-    </div>
-  </div>`;
-
-  // Top balance cards
-  h+=`<div class="bal-row">
-    <div class="card" style="border-top:2px solid #34D399">
-      <div class="card-label">Cash In</div>
-      <div class="card-value" style="color:#34D399">${fmtShort(ti)}</div>
-    </div>
-    <div class="card" style="border-top:2px solid #F87171">
-      <div class="card-label">Expenses${tcp>0?" + CC":""}</div>
-      <div class="card-value" style="color:#F87171">${fmtShort(totalOut)}</div>
     </div>
   </div>
-  ${tcp>0?`<div style="padding:4px 14px 0;display:flex;gap:8px">
-    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
-      <span style="color:var(--muted)">Regular Expenses</span><span style="color:#F87171;font-weight:800">${fmt(te)}</span>
-    </div>
-    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
-      <span style="color:var(--muted)">CC Payments</span><span style="color:#F97316;font-weight:800">${fmt(tcp)}</span>
-    </div>
-  </div>`:""}
-  <div style="padding:8px 14px 0">
-    <div class="card" style="border-top:2px solid ${totalWallet>=0?"#60A5FA":"#F97316"};display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div class="card-label">Total Wallet Balance</div>
-        <div class="card-value" style="color:${totalWallet>=0?"#60A5FA":"#F97316"};font-size:18px">${fmt(totalWallet)}</div>
-      </div>
-      <div style="font-size:28px">💰</div>
-    </div>
-  </div>`;
+  <input type="file" id="csvImportInput" accept=".csv" style="display:none" onchange="importCSV(this)"/>`;
 
   // Summary cards
   h+=`<div class="sec"><div class="sec-title">📅 ${mlabelFull(S.activeMonth)} Summary</div>
   <div style="background:var(--surface);border-radius:14px;padding:14px;margin-bottom:14px;">`;
   const summaryRows=[
+    {l:"Beginning Balance",v:fmt(bb),c:"#A78BFA"},
     {l:"Total Cash In",v:fmt(ti),c:"#34D399"},
     {l:"Regular Expenses",v:fmt(te),c:"#F87171"},
     ...(tcp>0?[{l:"CC / Installment Payments",v:fmt(tcp),c:"#F97316"}]:[]),
     {l:"Total Outflow",v:fmt(totalOut),c:"#F87171"},
-    {l:"Total Wallet Balance",v:fmt(totalWallet),c:totalWallet>=0?"#60A5FA":"#F97316"},
+    {l:"Ending Balance",v:fmt(endBal),c:endBal>=0?"#60A5FA":"#F97316"},
     {l:"No. of Transactions",v:me.length,c:"#FFE66D"},
     {l:"Avg Daily Spend",v:fmt(totalOut/Math.max(days,1)),c:"#FB923C"},
   ];
@@ -1085,14 +1079,46 @@ function renderReports(){
   });
   h+=`</div>`;
 
-  h+=`<div style="padding:10px 14px;font-size:11px;color:var(--muted);text-align:center">Tap-to-expand breakdowns are on the Home tab</div>`;
+  // Expense breakdown per category — expandable
+  h+=`<div class="sec-title" style="margin-bottom:10px">🗂️ Expenses by Category — tap to expand</div>`;
+  const catRows=S.expCats.filter(c=>(bec[c.name]||0)>0).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
+  if(!catRows.length){h+=`<div class="empty">No expense data for this month.</div>`;}
+  catRows.forEach(c=>{
+    const spent=bec[c.name]||0;
+    const pct=te>0?((spent/te)*100).toFixed(1):0;
+    const catItems=me.filter(e=>e.category===c.name).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const isOpen=!!S.openReportCats[c.name];
+    h+=`<div class="report-cat-row" onclick="toggleReportCat('${c.name.replace(/'/g,"\\'")}')">
+      <div class="report-cat-header">
+        <span style="font-size:19px">${c.icon}</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;font-weight:800">${c.name}</span>
+            <span style="font-size:13px;font-weight:900;color:${c.color}">${fmt(spent)}</span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:1px">${pct}% of total · ${catItems.length} item${catItems.length!==1?"s":""}</div>
+          <div class="progress-track" style="margin-top:5px"><div class="progress-fill" style="width:${pct}%;background:${c.color}"></div></div>
+        </div>
+        <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
+      </div>
+      <div class="report-cat-detail${isOpen?" open":""}">`;
+    catItems.forEach(e=>{
+      h+=`<div class="detail-item">
+        <span style="color:var(--text)">${e.date} ${e.note?`· <span style="color:var(--muted)">${e.note}</span>`:"(no note)"}</span>
+        <span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span>
+      </div>`;
+    });
+    h+=`<div class="detail-item" style="font-weight:900;color:${c.color}"><span>Total</span><span>${fmt(spent)}</span></div>`;
+    h+=`</div></div>`;
+  });
+  h+=`</div>`;
   document.getElementById("content").innerHTML=h;
   removeFabs();
 }
 
 function toggleReportCat(name){
   S.openReportCats[name]=!S.openReportCats[name];
-  renderDashboard();
+  renderReports();
 }
 
 // ─── ADD EXPENSE ─────────────────────────────────────────────
@@ -1112,7 +1138,7 @@ function expFormHTML(prefill={},isEdit=false){
     <select id="ePayMode" onchange="toggleExpPayMode()">
       <option value="">— Cash / Untracked —</option>
       ${funds.length?`<optgroup label="💳 Pay from Fund">${funds.map(f=>`<option value="fund:${f.id}"${curPayMode==="fund:"+f.id?" selected":""}>${f.icon} ${f.name} · ${fmtShort(getFundBalance(f.id,S.activeMonth))}</option>`).join("")}</optgroup>`:""}
-      <optgroup label="💳 Charge to Credit Card">${(S.creditCards||[]).length?(S.creditCards||[]).map(cd=>`<option value="ccard:${cd.id}"${curPayMode==="ccard:"+cd.id?" selected":""}>${cd.icon} ${cd.name}</option>`).join(""):(`<option value="" disabled style="color:#475569">No cards yet — add via Settings ▸ Credit Cards</option>`)}</optgroup>
+      ${(S.creditCards||[]).length?`<optgroup label="💳 Charge to Credit Card">${(S.creditCards||[]).map(cd=>`<option value="ccard:${cd.id}"${curPayMode==="ccard:"+cd.id?" selected":""}>${cd.icon} ${cd.name}</option>`).join("")}</optgroup>`:""}
       ${installs.length?`<optgroup label="📋 Charge to Installment">${installs.map(x=>`<option value="cc:${x.id}"${curPayMode==="cc:"+x.id?" selected":""}>${x.icon} ${x.name} · ${fmt(installRemaining(x))} left</option>`).join("")}</optgroup>`:""}
     </select>
     <div id="ePayInfo" style="font-size:11px;color:var(--muted);margin:-5px 0 8px;min-height:14px"></div>
@@ -1123,10 +1149,8 @@ function expFormHTML(prefill={},isEdit=false){
     <button class="btn-full" style="background:#EF4444" onclick="${isEdit?`submitEditExp(${numId})`:"submitExp()"}">${isEdit?"💾 Save Changes":"Save Expense"}</button>`;
 }
 function toggleExpPayMode(){
-  // Scope to whichever expense modal is currently open to avoid duplicate-ID clash
-  const ctx=document.querySelector("#modalAddExp.open")||document.querySelector("#modalEditExp.open")||document;
-  const sel=ctx.querySelector?ctx.querySelector("#ePayMode"):ctx.getElementById("ePayMode");
-  const info=ctx.querySelector?ctx.querySelector("#ePayInfo"):ctx.getElementById("ePayInfo");
+  const sel=document.getElementById("ePayMode");
+  const info=document.getElementById("ePayInfo");
   if(!sel||!info)return;
   const v=sel.value;
   if(v.startsWith("fund:")){
@@ -1257,6 +1281,7 @@ async function submitCCPayment(ccId){
   const fundId=document.getElementById("ccPayFund")?.value||null;
   const card=(S.creditCards||[]).find(cd=>cd.id===ccId);
   const entry={id:Date.now(),amount:amt,source:"Credit Card Payment",note:`${card?.name||"CC"} payment${note?" — "+note:""}`,date,ccPayId:ccId,isCCPayment:true};
+  if(fundId)entry.fundId=fundId;
   S.incomes.push(entry);
   if(fundId){S.expenses.push({id:Date.now()+1,amount:amt,category:"Credit Card",note:`CC payment: ${card?.name||""}`,date,fundId,isCCPayment:true});}
   await persist();closeM("modalFunds");flash("✅ CC payment recorded!");render();
@@ -1275,25 +1300,19 @@ function getEffectiveBudget(catName,cashIn){
   return legacy;
 }
 
-async function openAddExp(prefill={}){
-  // Always reload credit cards fresh so the dropdown is never stale
-  S.creditCards=await dbGet("creditCards")||S.creditCards||[];
-  _calcExpr=prefill.amount?String(prefill.amount):"";
-  // Clear Edit sheet to prevent duplicate IDs in DOM
-  document.getElementById("sheetEditExp").innerHTML="";
-  document.getElementById("sheetAddExp").innerHTML=expFormHTML(prefill,false);
+function openAddExp(prefill={}){
+  _calcExpr=prefill.amount?String(prefill.amount):"";document.getElementById("sheetAddExp").innerHTML=expFormHTML(prefill,false);
   openM("modalAddExp");
   setTimeout(toggleExpPayMode,50);
 }
 async function submitExp(){
-  const _s=document.getElementById("modalAddExp");
-  const a=parseFloat(_s.querySelector("#eAmt").value);
+  const a=parseFloat(document.getElementById("eAmt").value);
   if(!a||isNaN(a)){flash("⚠️ Enter a valid amount");return;}
-  const payMode=_s.querySelector("#ePayMode")?.value||"";
+  const payMode=document.getElementById("ePayMode")?.value||"";
   const entry={id:Date.now(),amount:a,
-    category:_s.querySelector("#eCat").value,
-    note:_s.querySelector("#eNote").value.trim(),
-    date:_s.querySelector("#eDate").value,
+    category:document.getElementById("eCat").value,
+    note:document.getElementById("eNote").value.trim(),
+    date:document.getElementById("eDate").value,
     payMode};
   if(payMode.startsWith("fund:"))entry.fundId=payMode.slice(5);
   if(payMode.startsWith("cc:"))entry.installId=payMode.slice(3);
@@ -1303,9 +1322,7 @@ async function submitExp(){
 }
 
 // ─── EDIT EXPENSE ─────────────────────────────────────────────
-async function openEditExp(id){
-  // Always reload credit cards fresh so the dropdown is never stale
-  S.creditCards=await dbGet("creditCards")||S.creditCards||[];
+function openEditExp(id){
   // Coerce to number since IDs stored as numbers, onclick passes numbers
   const nid=Number(id);
   const e=S.expenses.find(x=>Number(x.id)===nid);
@@ -1317,8 +1334,6 @@ async function openEditExp(id){
   if(!payMode&&e.ccId)payMode="ccard:"+e.ccId;
   const prefill={...e,payMode};
   _calcExpr=String(e.amount||"");
-  // Clear Add sheet to prevent duplicate IDs in DOM
-  document.getElementById("sheetAddExp").innerHTML="";
   document.getElementById("sheetEditExp").innerHTML=expFormHTML(prefill,true);
   openM("modalEditExp");
   setTimeout(toggleExpPayMode,50);
@@ -1327,15 +1342,13 @@ async function submitEditExp(id){
   const nid=Number(id);
   const idx=S.expenses.findIndex(x=>Number(x.id)===nid);
   if(idx<0){flash("⚠️ Expense not found — please try again");return;}
-  // Always scope to modalEditExp to avoid reading stale duplicate IDs from modalAddExp
-  const _s=document.getElementById("modalEditExp");
-  const a=parseFloat(_s.querySelector("#eAmt").value);
+  const a=parseFloat(document.getElementById("eAmt").value);
   if(!a||isNaN(a)){flash("⚠️ Enter a valid amount");return;}
-  const payMode=_s.querySelector("#ePayMode")?.value||"";
+  const payMode=document.getElementById("ePayMode")?.value||"";
   const updated={...S.expenses[idx],amount:a,
-    category:_s.querySelector("#eCat").value,
-    note:_s.querySelector("#eNote").value.trim(),
-    date:_s.querySelector("#eDate").value,
+    category:document.getElementById("eCat").value,
+    note:document.getElementById("eNote").value.trim(),
+    date:document.getElementById("eDate").value,
     payMode};
   if(payMode.startsWith("fund:"))updated.fundId=payMode.slice(5); else delete updated.fundId;
   if(payMode.startsWith("cc:"))updated.installId=payMode.slice(3); else delete updated.installId;
@@ -1397,7 +1410,155 @@ async function submitBeginBal(){
   await persist();closeM("modalBeginBal");flash("✅ Opening balances saved!");render();
 }
 
-// ─── CSV EXPORT ───────────────────────────────────────────────
+// ─── CSV IMPORT ───────────────────────────────────────────────
+function importCSV(input){
+  const file=input.files[0];
+  if(!file){return;}
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      const text=e.target.result;
+      const lines=text.split(/\r?\n/).filter(l=>l.trim());
+      if(!lines.length){flash("⚠️ Empty file");return;}
+
+      // Parse CSV rows (handles quoted fields with commas)
+      function parseRow(line){
+        const cols=[];let cur="";let inQ=false;
+        for(let i=0;i<line.length;i++){
+          const ch=line[i];
+          if(ch==='"'&&!inQ){inQ=true;}
+          else if(ch==='"'&&inQ&&line[i+1]==='"'){cur+='"';i++;}
+          else if(ch==='"'&&inQ){inQ=false;}
+          else if(ch===','&&!inQ){cols.push(cur.trim());cur="";}
+          else{cur+=ch;}
+        }
+        cols.push(cur.trim());
+        return cols;
+      }
+
+      const header=parseRow(lines[0]).map(h=>h.toLowerCase().replace(/"/g,"").trim());
+      const rows=lines.slice(1).map(parseRow);
+
+      let expCount=0,incCount=0,xferCount=0,instCount=0,payCount=0;
+      const newExp=[],newInc=[],newXfer=[];
+      const instMap={}; // name -> installment object
+
+      // Keep existing data — merge (don't overwrite)
+      const existingExpIds=new Set(S.expenses.map(e=>String(e.id)));
+      const existingIncIds=new Set(S.incomes.map(i=>String(i.id)));
+
+      rows.forEach((cols,ri)=>{
+        if(cols.length<3)return;
+        const get=(name)=>{
+          const idx=header.indexOf(name);
+          return idx>=0?(cols[idx]||"").replace(/^"|"$/g,"").trim():"";
+        };
+        const type=get("type").toLowerCase();
+        const date=get("date");
+        const catOrSrc=get("category/source");
+        const amtStr=get("amount");
+        const note=get("note");
+        const fund=get("fund");
+        const payMode=get("paymode");
+
+        if(!date||!amtStr)return;
+        const amount=parseFloat(amtStr);
+        if(isNaN(amount)||amount<=0)return;
+
+        const id=1700000000+ri; // generate stable id from row index
+
+        // Find fundId by name
+        const fundObj=(S.funds||[]).find(f=>f.name===fund);
+        const fundId=fundObj?fundObj.id:null;
+
+        if(type==="expense"){
+          if(existingExpIds.has(String(id)))return;
+          const entry={id,amount,category:catOrSrc||"Others",note,date};
+          if(fundId)entry.fundId=fundId;
+          if(payMode)entry.payMode=payMode;
+          newExp.push(entry);expCount++;
+        } else if(type==="income"){
+          if(existingIncIds.has(String(id)))return;
+          const entry={id,amount,source:catOrSrc||"Others",note,date};
+          if(fundId)entry.fundId=fundId;
+          newInc.push(entry);incCount++;
+        } else if(type==="transfer"){
+          // Transfer rows: category/source = "FromFund → ToFund"
+          const parts=(catOrSrc||"").split("→").map(s=>s.trim());
+          if(parts.length===2){
+            newXfer.push({id:"xfer_imp_"+ri,amount,fromFundName:parts[0],toFundName:parts[1],note,date});
+            xferCount++;
+          }
+        } else if(type==="installment"){
+          // Installment header row
+          if(!instMap[catOrSrc]){
+            instMap[catOrSrc]={
+              id:"inst_imp_"+ri,name:catOrSrc,
+              icon:"💳",color:"#F87171",
+              creditor:note.split("·")[0]?.trim()||"",
+              totalAmount:amount,
+              monthlyAmount:parseFloat((note.match(/[\d.]+\/mo/)||["0"])[0])||amount,
+              termMonths:parseInt((note.match(/(\d+)mo/)||["0","1"])[1])||1,
+              startDate:date,payments:[]
+            };
+            instCount++;
+          }
+        } else if(type==="installpayment"){
+          // Payment row for an installment
+          const inst=instMap[catOrSrc];
+          if(inst){
+            inst.payments.push({id:"pay_imp_"+ri,date,amount,note});
+            payCount++;
+          }
+        }
+      });
+
+      // Merge into state
+      S.expenses=[...S.expenses,...newExp];
+      S.incomes=[...S.incomes,...newInc];
+
+      // Add transfers that don't already exist
+      const existXferIds=new Set((S.transfers||[]).map(t=>t.id));
+      newXfer.forEach(t=>{
+        // Resolve fund IDs from names
+        const from=(S.funds||[]).find(f=>f.name===t.fromFundName);
+        const to=(S.funds||[]).find(f=>f.name===t.toFundName);
+        if(from&&to){
+          t.fromFundId=from.id;t.toFundId=to.id;
+        }
+        if(!existXferIds.has(t.id))S.transfers.push(t);
+      });
+
+      // Add installments that don't exist by name
+      const existInstNames=new Set((S.installments||[]).map(x=>x.name));
+      Object.values(instMap).forEach(inst=>{
+        if(!existInstNames.has(inst.name))S.installments.push(inst);
+      });
+
+      // Add any missing categories
+      newExp.forEach(e=>{
+        if(e.category&&!S.expCats.find(c=>c.name===e.category)){
+          S.expCats.push({name:e.category,icon:"📦",color:"#94A3B8"});
+        }
+      });
+      newInc.forEach(i=>{
+        if(i.source&&!S.incCats.find(c=>c.name===i.source)){
+          S.incCats.push({name:i.source,icon:"💵",color:"#34D399"});
+        }
+      });
+
+      await persist();
+      input.value=""; // reset file input
+      flash(`✅ Imported: ${expCount} expenses · ${incCount} income · ${xferCount} transfers · ${instCount} installments`);
+      render();
+
+    } catch(err){
+      console.error("Import error:",err);
+      flash("❌ Import failed: "+err.message);
+    }
+  };
+  reader.readAsText(file);
+}
 function exportCSV(){
   const rows=[["Type","Date","Category/Source","Amount","Note","Fund","PayMode","IsVoice"]];
   S.expenses.forEach(e=>{
@@ -1419,26 +1580,6 @@ function exportCSV(){
       rows.push(["InstallPayment",p.date,inst.name,p.amount,p.note||"",f?f.name:"","",""]);
     });
   });
-  // ── Fund definitions & current balances ──
-  if((S.funds||[]).length){
-    rows.push([]);
-    rows.push(["--- MY FUNDS ---","","","","","","",""]);
-    rows.push(["FundName","FundID","Icon","InitialBalance","CurrentBalance","Target","","" ]);
-    (S.funds||[]).forEach(f=>{
-      const bal=getFundBalance(f.id,"9999-12");
-      rows.push([f.name,f.id,f.icon,f.initialBalance||0,bal,f.target||0,"",""]);
-    });
-  }
-  // ── Credit card definitions & outstanding balances ──
-  if((S.creditCards||[]).length){
-    rows.push([]);
-    rows.push(["--- CREDIT CARDS ---","","","","","","",""]);
-    rows.push(["CardName","CardID","Icon","CreditLimit","Outstanding","BillingDay","",""]);
-    (S.creditCards||[]).forEach(cd=>{
-      const outstanding=getCCBalance(cd.id,"9999-12");
-      rows.push([cd.name,cd.id,cd.icon,cd.limit||0,outstanding,cd.billingDay||15,"",""]);
-    });
-  }
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
   const blob=new Blob([csv],{type:"text/csv"});
   const url=URL.createObjectURL(blob);
@@ -1447,219 +1588,6 @@ function exportCSV(){
   document.body.appendChild(a);a.click();
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},500);
   flash("✅ CSV exported!");
-}
-
-function exportJSON(){
-  const data={
-    exportDate:new Date().toISOString(),
-    expenses:S.expenses,
-    incomes:S.incomes,
-    transfers:S.transfers||[],
-    funds:(S.funds||[]).map(f=>({...f,currentBalance:getFundBalance(f.id,"9999-12")})),
-    creditCards:(S.creditCards||[]).map(cd=>({...cd,outstandingBalance:getCCBalance(cd.id,"9999-12")})),
-    installments:S.installments||[],
-    expCats:S.expCats,
-    incCats:S.incCats,
-    budgets:S.budgets,
-    budgetRules:S.budgetRules||{},
-    expBeginBal:S.expBeginBal||{}
-  };
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;a.download=`PesoTrack_backup_${today()}.json`;
-  document.body.appendChild(a);a.click();
-  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},500);
-  flash("✅ Full backup downloaded!");
-}
-
-function importCSV(input){
-  const file=input.files[0];
-  if(!file){return;}
-  // Peek at first 4 bytes to detect binary/ZIP files (e.g. .numbers from iOS)
-  const peeker=new FileReader();
-  peeker.onload=function(pev){
-    const arr=new Uint8Array(pev.target.result);
-    if(arr[0]===0x50&&arr[1]===0x4B){
-      input.value="";
-      flash("⚠️ Wrong file type — this is a .numbers file, not a CSV.");
-      setTimeout(()=>alert(
-        "📱 iOS converted your CSV to .numbers format\n\n"+
-        "Your iPhone automatically opened the file in Apple Numbers and saved it as a .numbers file — which PesoTrack cannot read.\n\n"+
-        "How to find the original .csv file:\n"+
-        "1. Open the Files app on your iPhone\n"+
-        "2. Go to: Browse → On My iPhone → Downloads\n"+
-        "   (or iCloud Drive → Downloads)\n"+
-        "3. Look for a file named like:\n"+
-        "   PesoTrack_2026-05-18.csv\n"+
-        "4. Long-press it → tap Share → choose how to send it\n"+
-        "   (AirDrop, Mail, etc.)\n\n"+
-        "⚠️ Do NOT just tap the file — that opens it in Numbers again.\n"+
-        "Use long-press → Share to get the original .csv file."
-      ),100);
-      return;
-    }
-    _doImportCSV(file,input);
-  };
-  peeker.readAsArrayBuffer(file.slice(0,4));
-}
-function _doImportCSV(file,input){
-  const reader=new FileReader();
-  reader.onload=async function(e){
-    try{
-      const text=e.target.result;
-      const lines=text.split(/\r?\n/).filter(l=>l.trim());
-      if(!lines.length){flash("⚠️ Empty file");return;}
-      function parseRow(line){
-        const cols=[];let cur="";let inQ=false;
-        for(let i=0;i<line.length;i++){
-          const ch=line[i];
-          if(ch==='"'&&!inQ){inQ=true;}
-          else if(ch==='"'&&inQ&&line[i+1]==='"'){cur+='"';i++;}
-          else if(ch==='"'&&inQ){inQ=false;}
-          else if(ch===','&&!inQ){cols.push(cur.trim());cur="";}
-          else{cur+=ch;}
-        }
-        cols.push(cur.trim());return cols;
-      }
-      const header=parseRow(lines[0]).map(h=>h.toLowerCase().replace(/"/g,"").trim());
-      const rows=lines.slice(1).map(parseRow);
-      let expCount=0,incCount=0,xferCount=0,instCount=0;
-      const newExp=[],newInc=[],newXfer=[];
-      const instMap={};
-      const existingExpIds=new Set(S.expenses.map(e=>String(e.id)));
-      const existingIncIds=new Set(S.incomes.map(i=>String(i.id)));
-      rows.forEach((cols,ri)=>{
-        if(cols.length<3)return;
-        const get=(name)=>{const idx=header.indexOf(name);return idx>=0?(cols[idx]||"").replace(/^"|"$/g,"").trim():"";};
-        const type=get("type").toLowerCase();
-        const date=get("date");
-        const catOrSrc=get("category/source");
-        const amtStr=get("amount");
-        const note=get("note");
-        const fund=get("fund");
-        const payMode=get("paymode");
-        if(!date||!amtStr)return;
-        const amount=parseFloat(amtStr);
-        if(isNaN(amount)||amount<=0)return;
-        const id=1700000000+ri;
-        const fundObj=(S.funds||[]).find(f=>f.name===fund);
-        const fundId=fundObj?fundObj.id:null;
-        if(type==="expense"){
-          if(existingExpIds.has(String(id)))return;
-          const entry={id,amount,category:catOrSrc||"Others",note,date};
-          if(fundId)entry.fundId=fundId;
-          if(payMode)entry.payMode=payMode;
-          newExp.push(entry);expCount++;
-        } else if(type==="income"){
-          if(existingIncIds.has(String(id)))return;
-          const entry={id,amount,source:catOrSrc||"Others",note,date};
-          if(fundId)entry.fundId=fundId;
-          newInc.push(entry);incCount++;
-        } else if(type==="transfer"){
-          const parts=(catOrSrc||"").split("→").map(s=>s.trim());
-          if(parts.length===2){newXfer.push({id:"xfer_imp_"+ri,amount,fromFundName:parts[0],toFundName:parts[1],note,date});xferCount++;}
-        } else if(type==="installment"){
-          if(!instMap[catOrSrc]){
-            instMap[catOrSrc]={id:"inst_imp_"+ri,name:catOrSrc,icon:"💳",color:"#F87171",
-              creditor:note.split("·")[0]?.trim()||"",totalAmount:amount,
-              monthlyAmount:parseFloat((note.match(/[\d.]+\/mo/)||["0"])[0])||amount,
-              termMonths:parseInt((note.match(/(\d+)mo/)||["0","1"])[1])||1,
-              startDate:date,payments:[]};
-            instCount++;
-          }
-        } else if(type==="installpayment"){
-          const inst=instMap[catOrSrc];
-          if(inst)inst.payments.push({id:"pay_imp_"+ri,date,amount,note});
-        }
-      });
-      S.expenses=[...S.expenses,...newExp];
-      S.incomes=[...S.incomes,...newInc];
-      const existXferIds=new Set((S.transfers||[]).map(t=>t.id));
-      newXfer.forEach(t=>{
-        const from=(S.funds||[]).find(f=>f.name===t.fromFundName);
-        const to=(S.funds||[]).find(f=>f.name===t.toFundName);
-        if(from&&to){t.fromFundId=from.id;t.toFundId=to.id;}
-        if(!existXferIds.has(t.id))S.transfers.push(t);
-      });
-      const existInstNames=new Set((S.installments||[]).map(x=>x.name));
-      Object.values(instMap).forEach(inst=>{if(!existInstNames.has(inst.name))S.installments.push(inst);});
-      newExp.forEach(e=>{if(e.category&&!S.expCats.find(c=>c.name===e.category))S.expCats.push({name:e.category,icon:"📦",color:"#94A3B8"});});
-      newInc.forEach(i=>{if(i.source&&!S.incCats.find(c=>c.name===i.source))S.incCats.push({name:i.source,icon:"💵",color:"#34D399"});});
-      await persist();
-      input.value="";
-      flash(`✅ Imported: ${expCount} expenses · ${incCount} income · ${xferCount} transfers · ${instCount} installments`);
-      render();
-    }catch(err){
-      console.error("Import error:",err);
-      flash("❌ Import failed: "+err.message);
-    }
-  };
-  reader.readAsText(file);
-}
-
-function importJSON(input){
-  const file=input.files[0];
-  if(!file){return;}
-  // First, peek at the first 4 bytes to detect binary/ZIP files (e.g. .numbers from iOS)
-  const peeker=new FileReader();
-  peeker.onload=function(pev){
-    const arr=new Uint8Array(pev.target.result);
-    // ZIP magic bytes: PK = 0x50 0x4B — .numbers files are ZIPs
-    if(arr[0]===0x50&&arr[1]===0x4B){
-      input.value="";
-      flash("⚠️ Wrong file type — this is a .numbers file, not a backup.");
-      setTimeout(()=>alert(
-        "📱 iOS converted your backup to .numbers format\n\n"+
-        "Your iPhone automatically opened the file in Apple Numbers and saved it as a .numbers file — which PesoTrack cannot read.\n\n"+
-        "How to find the original .json backup:\n"+
-        "1. Open the Files app on your iPhone\n"+
-        "2. Go to: Browse → On My iPhone → Downloads\n"+
-        "   (or iCloud Drive → Downloads)\n"+
-        "3. Look for a file named like:\n"+
-        "   PesoTrack_backup_2026-05-18.json\n"+
-        "4. Long-press it → tap Share → choose how to send it\n"+
-        "   (AirDrop, Mail, etc.)\n\n"+
-        "⚠️ Do NOT just tap the file — that opens it in Numbers again.\n"+
-        "Use long-press → Share to get the original .json file."
-      ),100);
-      return;
-    }
-    // Not binary — proceed with text reading
-    const reader=new FileReader();
-    reader.onload=async(e)=>{
-      try{
-        const data=JSON.parse(e.target.result);
-        // Validate it looks like a PesoTrack backup
-        if(!data.expenses||!data.incomes){flash("⚠️ Invalid backup file — must be a PesoTrack .json backup");input.value="";return;}
-        // Confirm before overwriting
-        const ok=confirm(`Restore backup from ${data.exportDate?new Date(data.exportDate).toLocaleString():"this file"}?\n\nThis will REPLACE all current data. Make sure to export a backup first if needed.`);
-        if(!ok){input.value="";return;}
-        // Restore all data to state
-        S.expenses       = data.expenses       || [];
-        S.incomes        = data.incomes        || [];
-        S.transfers      = data.transfers      || [];
-        S.funds          = (data.funds||[]).map(f=>{const{currentBalance,...rest}=f;return rest;});
-        S.creditCards    = (data.creditCards||[]).map(cd=>{const{outstandingBalance,...rest}=cd;return rest;});
-        S.installments   = data.installments   || [];
-        S.expCats        = data.expCats        || S.expCats;
-        S.incCats        = data.incCats        || S.incCats;
-        S.budgets        = data.budgets        || {};
-        S.budgetRules    = data.budgetRules    || {};
-        S.expBeginBal    = data.expBeginBal    || {};
-        // Save everything to IndexedDB
-        await persist();
-        input.value="";
-        flash("✅ Backup restored successfully!");
-        render();
-      }catch(err){
-        flash("⚠️ Could not read backup file — make sure it is a PesoTrack .json backup");
-        input.value="";
-      }
-    };
-    reader.readAsText(file);
-  };
-  peeker.readAsArrayBuffer(file.slice(0,4));
 }
 
 // ─── ADD CASH INFLOW ─────────────────────────────────────────
@@ -1901,7 +1829,148 @@ function render(){
   else renderReports();
 }
 
-// ─── (voice removed) ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// ─── VOICE COMMAND ENGINE ────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+let recognition=null,voiceListening=false,voiceParsed=null,voiceContext="expense";
+const EXP_KW={Food:["food","eat","meal","lunch","dinner","breakfast","kain","ulam","merienda","snack","pizza","burger"],Restaurant:["restaurant","resto","shawarma","fast food","fastfood","jollibee","mcdo"],Coffee:["coffee","cafe","kape","starbucks","boba","milk tea","cha","tumbler"],Transport:["transport","fare","jeep","jeepney","tricycle","grab","taxi","bus","mrt","lrt","angkas","pasahe"],Travel:["travel","airfare","hotel","trip"],Family:["family","pamilya","anak","mama","papa"],Groceries:["groceries","grocery","market","palengke","supermarket","gulay"],Health:["medicine","health","doctor","hospital","gamot","pharmacy","botika","vitamins"],Shopping:["shopping","mall","bought","dress","clothes"],Utilities:["electric","water","bill","internet","wifi","meralco","globe","smart","kuryente","tubig"],Entertainment:["entertainment","netflix","spotify","movie","games","concert"],Savings:["savings","save","ipon"],};
+const INC_KW={Salary:["salary","sweldo","payroll","pay","sahod"],Hostel:["hostel","room"],Business:["business","sale","sales","tindahan","negosyo"],Receivable:["receivable","utang","bayad","collect"],Extra:["extra","bonus","allowance"]};
+
+function matchCatByKW(text,cats,kwMap){
+  const t=text.toLowerCase();
+  for(const c of cats)if(t.includes(c.name.toLowerCase()))return c.name;
+  for(const[catName,keys]of Object.entries(kwMap)){if(keys.some(k=>t.includes(k))){const f=cats.find(c=>c.name.toLowerCase()===catName.toLowerCase());if(f)return f.name;}}
+  return null;
+}
+function initRecognition(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return null;
+  const r=new SR();r.lang="en-PH";r.continuous=false;r.interimResults=true;r.maxAlternatives=5;
+  r.onstart=()=>{voiceListening=true;document.getElementById("voiceOrb").classList.add("listening");document.getElementById("voiceStatus").textContent="🔴 Listening…";document.getElementById("voiceTranscript").style.color="var(--text)";document.getElementById("voiceTranscript").textContent="";};
+  r.onresult=e=>{let interim="",final="";for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)final+=e.results[i][0].transcript;else interim+=e.results[i][0].transcript;}document.getElementById("voiceTranscript").textContent=final||interim;if(final)parseVoiceText(final);};
+  r.onerror=e=>{stopListening();const msgs={"not-allowed":"🚫 Mic denied","no-speech":"🤫 No speech","network":"📶 Network error"};document.getElementById("voiceStatus").textContent=msgs[e.error]||"⚠️ Error";showVoiceRetry();};
+  r.onend=()=>{stopListening();if(!voiceParsed)showVoiceRetry();};
+  return r;
+}
+function showVoiceRetry(){document.getElementById("voiceRetryBtn").style.display="";if(!voiceParsed)document.getElementById("voiceStatus").textContent="Tap mic or retry";}
+function stopListening(){voiceListening=false;const o=document.getElementById("voiceOrb");if(o)o.classList.remove("listening");}
+function toggleListening(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){document.getElementById("voiceStatus").textContent="❌ Not supported";document.getElementById("voiceTranscript").textContent="Try Chrome or Safari iOS 15+.";return;}
+  if(!recognition)recognition=initRecognition();
+  if(voiceListening){recognition.stop();}
+  else{voiceParsed=null;document.getElementById("voiceResult").classList.remove("show");document.getElementById("voiceConfirmBtn").style.display="none";document.getElementById("voiceRetryBtn").style.display="none";document.getElementById("voiceTranscript").style.color="var(--text)";try{recognition.start();}catch(e){recognition=initRecognition();recognition.start();}}
+}
+function retryVoice(){document.getElementById("voiceRetryBtn").style.display="none";document.getElementById("voiceConfirmBtn").style.display="none";document.getElementById("voiceResult").classList.remove("show");document.getElementById("voiceDateWrap").style.display="none";document.getElementById("voiceFundWrap").style.display="none";voiceParsed=null;toggleListening();}
+
+// ─── VOICE DATE PARSING ──────────────────────────────────────
+function parseVoiceDate(text){
+  const t=text.toLowerCase();
+  const now=new Date();
+  // "yesterday"
+  if(/yesterday|kahapon/.test(t)){
+    const d=new Date(now);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);
+  }
+  // "2 days ago", "3 days ago"
+  const daysAgo=t.match(/(\d+)\s*days?\s*ago/);
+  if(daysAgo){const d=new Date(now);d.setDate(d.getDate()-parseInt(daysAgo[1]));return d.toISOString().slice(0,10);}
+  // "last monday/tuesday..." etc
+  const days=["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+  for(let i=0;i<days.length;i++){
+    if(t.includes("last "+days[i])||t.includes(days[i])){
+      const d=new Date(now);
+      const diff=(d.getDay()-i+7)%7||7;
+      d.setDate(d.getDate()-diff);
+      if(diff>0&&diff<=7)return d.toISOString().slice(0,10);
+    }
+  }
+  // "april 23", "april 23rd", "23 april"
+  const months=["january","february","march","april","may","june","july","august","september","october","november","december"];
+  for(let mi=0;mi<months.length;mi++){
+    const mn=months[mi];
+    let dm=t.match(new RegExp(mn+"\\s+(\\d{1,2})(?:st|nd|rd|th)?"));
+    if(!dm)dm=t.match(new RegExp("(\\d{1,2})(?:st|nd|rd|th)?\\s+"+mn));
+    if(dm){
+      const day=parseInt(dm[1]);
+      const yr=now.getFullYear();
+      const candidate=new Date(yr,mi,day);
+      if(candidate>now)candidate.setFullYear(yr-1); // if in future, use last year
+      return candidate.toISOString().slice(0,10);
+    }
+  }
+  return today(); // default to today
+}
+
+function parseVoiceText(text){
+  const t=text.toLowerCase().trim();
+  const numMatch=t.match(/(\d[\d,]*(?:\.\d+)?)/);
+  const amount=numMatch?parseFloat(numMatch[1].replace(/,/g,"")):null;
+  const isIncome=/\b(income|received|earned|salary|cash in|kita|natanggap|inflow|got paid)\b/.test(t);
+  const isExpense=/\b(spent|expense|gastos|bayad|paid|pay|spend|bought|nagbayad)\b/.test(t);
+  let type=voiceContext,catName;
+  if(isIncome&&!isExpense){type="income";catName=matchCatByKW(t,S.incCats,INC_KW)||S.incCats[0].name;}
+  else{type="expense";catName=matchCatByKW(t,S.expCats,EXP_KW)||S.expCats[0].name;}
+  // Parse date from voice
+  const parsedDate=parseVoiceDate(t);
+  if(!amount){document.getElementById("voiceStatus").textContent="❓ No amount found";document.getElementById("voiceTranscript").textContent=`Heard: "${text}" — say an amount`;showVoiceRetry();return;}
+  voiceParsed={type,amount,catName,rawText:text,date:parsedDate};
+  const catObj=type==="expense"?S.expCats.find(c=>c.name===catName):S.incCats.find(c=>c.name===catName);
+  const emoji=catObj?.icon||(type==="expense"?"💸":"💵");
+  const isToday=parsedDate===today();
+  const r=document.getElementById("voiceResult");
+  r.innerHTML=`<strong>${type==="expense"?"💸 Expense":"💵 Income"}:</strong><br><br>${emoji} <strong>${catName}</strong> — <strong style="font-size:15px">${fmt(amount)}</strong><br><span style="color:${isToday?"var(--muted)":"#FFE66D"};font-size:11px">📅 ${parsedDate}${isToday?" (today)":""} · via voice — edit date below if needed</span>`;
+  r.classList.add("show");
+  // Show editable date
+  const dw=document.getElementById("voiceDateWrap");
+  const di=document.getElementById("voiceDateInput");
+  if(dw)dw.style.display="";
+  if(di)di.value=parsedDate;
+  document.getElementById("voiceStatus").textContent="✅ Confirm to save";
+  document.getElementById("voiceConfirmBtn").style.display="";
+  document.getElementById("voiceRetryBtn").style.display="";
+  document.getElementById("voiceFundWrap").style.display="";
+}
+async function confirmVoice(){
+  if(!voiceParsed)return;
+  const{type,amount,catName,rawText}=voiceParsed;
+  const dateEl=document.getElementById("voiceDateInput");
+  const finalDate=dateEl&&dateEl.value?dateEl.value:voiceParsed.date||today();
+  const payModeEl=document.getElementById("voicePayMode");
+  const payMode=payModeEl?payModeEl.value:"";
+  if(type==="expense"){
+    const entry={id:Date.now(),amount,category:catName,note:rawText,date:finalDate,viaVoice:true,payMode};
+    if(payMode.startsWith("fund:"))entry.fundId=payMode.slice(5);
+    if(payMode.startsWith("cc:"))entry.installId=payMode.slice(3);
+    S.expenses.push(entry);
+  } else {
+    const entry={id:Date.now(),amount,source:catName,note:rawText,date:finalDate,viaVoice:true};
+    if(payMode.startsWith("fund:"))entry.fundId=payMode.slice(5);
+    S.incomes.push(entry);
+  }
+  await persist();flash("✅ Saved via voice!");closeVoice();render();
+}
+function openVoice(ctx="expense"){
+  voiceContext=ctx;voiceParsed=null;
+  document.getElementById("voiceTranscript").textContent="Your voice will appear here…";
+  document.getElementById("voiceTranscript").style.color="var(--muted2)";
+  document.getElementById("voiceResult").classList.remove("show");
+  document.getElementById("voiceDateWrap").style.display="none";
+  document.getElementById("voiceFundWrap").style.display="none";
+  document.getElementById("voiceConfirmBtn").style.display="none";
+  document.getElementById("voiceRetryBtn").style.display="none";
+  document.getElementById("voiceStatus").textContent="Tap mic to start";
+  document.getElementById("voiceOrb").classList.remove("listening");
+  const funds=S.funds||[];
+  const installs=(S.installments||[]).filter(x=>installRemaining(x)>0);
+  const sel=document.getElementById("voicePayMode");
+  if(sel){
+    let opts='<option value="">\u2014 Cash / Untracked \u2014</option>';
+    if(funds.length)opts+='<optgroup label="\ud83d\udcb3 Pay from Fund">'+funds.map(f=>'<option value="fund:'+f.id+'">'+f.icon+' '+f.name+' · '+fmtShort(getFundBalance(f.id,S.activeMonth))+'</option>').join("")+'</optgroup>';
+    if(installs.length)opts+='<optgroup label="\ud83d\udccb Charge to Installment">'+installs.map(x=>'<option value="cc:'+x.id+'">'+x.icon+' '+x.name+'</option>').join("")+'</optgroup>';
+    sel.innerHTML=opts;
+  }
+  document.getElementById("voiceModal").classList.add("open");
+}
+function closeVoice(){if(recognition&&voiceListening)try{recognition.stop();}catch(e){}voiceListening=false;voiceParsed=null;document.getElementById("voiceDateWrap").style.display="none";document.getElementById("voiceFundWrap").style.display="none";document.getElementById("voiceModal").classList.remove("open");}
 
 // ─── INIT ────────────────────────────────────────────────────
 openDB().then(async()=>{
