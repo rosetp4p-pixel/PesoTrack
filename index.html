@@ -231,7 +231,7 @@ function months(){
   return[...ks].sort().reverse();
 }
 function mExp(m=S.activeMonth){return S.expenses.filter(e=>mkey(new Date(e.date))===m);}
-function mInc(m=S.activeMonth){return S.incomes.filter(i=>mkey(new Date(i.date))===m);}
+function mInc(m=S.activeMonth){return S.incomes.filter(i=>mkey(new Date(i.date))===m&&!i.isCCPayment);}
 function mTrans(m=S.activeMonth){return(S.transfers||[]).filter(t=>mkey(new Date(t.date))===m);}
 function tInc(m=S.activeMonth){return mInc(m).reduce((s,i)=>s+i.amount,0);}
 function tExp(m=S.activeMonth){return mExp(m).reduce((s,e)=>s+e.amount,0);}
@@ -1240,7 +1240,6 @@ async function submitCCPayment(ccId){
   const fundId=document.getElementById("ccPayFund")?.value||null;
   const card=(S.creditCards||[]).find(cd=>cd.id===ccId);
   const entry={id:Date.now(),amount:amt,source:"Credit Card Payment",note:`${card?.name||"CC"} payment${note?" — "+note:""}`,date,ccPayId:ccId,isCCPayment:true};
-  if(fundId)entry.fundId=fundId;
   S.incomes.push(entry);
   if(fundId){S.expenses.push({id:Date.now()+1,amount:amt,category:"Credit Card",note:`CC payment: ${card?.name||""}`,date,fundId,isCCPayment:true});}
   await persist();closeM("modalFunds");flash("✅ CC payment recorded!");render();
