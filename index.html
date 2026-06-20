@@ -484,7 +484,7 @@ function renderExpenses(){
   // ── Installments / Payables summary ──
   let h=`<div class="sec"><div class="sec-row"><div class="sec-title">💳 Credit & Installments</div><div style="display:flex;gap:6px"><button class="btn-gray" onclick="openCreditCards()" style="font-size:10px">🪪 Cards</button><button class="btn-blue" onclick="openInstallForm()">+ Payable</button></div></div>`;
 
-  if(!installs.length){
+  if(!installs.length&&!(S.creditCards||[]).length){
     h+=`<div style="background:var(--surface);border-radius:12px;padding:14px;text-align:center;margin-bottom:4px;">
       <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Track credit cards, loans, and installment payables</div>
       <button class="btn-blue" onclick="openInstallForm()">+ Add Payable</button>
@@ -497,6 +497,32 @@ function renderExpenses(){
       <div><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">Total Outstanding</div><div style="font-size:16px;font-weight:900;color:#F87171">${fmt(totalOwe)}</div></div>
       <div style="text-align:right"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">Monthly Due</div><div style="font-size:16px;font-weight:900;color:#FFE66D">${fmt(totalMonthly)}</div></div>
     </div>`;
+
+    if((S.creditCards||[]).length){
+      h+=`<div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px">💳 Credit Cards</div>`;
+      S.creditCards.forEach(cd=>{
+        const thisM=getCCThisMonth(cd.id),paid=getCCPaid(cd.id,S.activeMonth),outstanding=getCCBalance(cd.id,S.activeMonth);
+        h+=`<div class="inst-card" style="border-left-color:${cd.color}" onclick="openCreditCards()">
+          <div class="inst-header">
+            <span style="font-size:22px">${cd.icon}</span>
+            <div class="inst-body">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div class="inst-name">${cd.name}</div>
+                <span style="color:var(--muted);font-size:13px;margin-left:8px;flex-shrink:0">▼</span>
+              </div>
+              <div class="inst-sub">This month: ${fmt(thisM)} · Outstanding: ${fmt(outstanding)}</div>
+              <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:10px;color:var(--muted)">
+                <span>Charged: <strong style="color:#F87171">${fmt(thisM)}</strong></span>
+                <span>Unpaid: <strong style="color:#F97316">${fmt(outstanding)}</strong></span>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      });
+    }
+    if(installs.length){
+      h+=`<div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px">📋 Installment Payables</div>`;
+    }
 
     installs.forEach(inst=>{
       const paid=installPaid(inst);
@@ -1041,33 +1067,33 @@ async function submitFund(){
 
 // ─── REPORTS ─────────────────────────────────────────────────
 function renderReports(){
-  const bec=byCat(mExp(),"category",S.expCats);
   const te=tExp(),ti=tInc(),tcp=tInstallPay();
   const totalOut=te+tcp;
-  const bb=getBeginningBalance(S.activeMonth);
-  const endBal=bb+ti-totalOut;
+  const totalWalletBal=(S.funds||[]).reduce((s,f)=>s+getFundBalance(f.id,S.activeMonth),0);
   const me=mExp();
   const days=new Date(S.activeMonth.split("-")[0],S.activeMonth.split("-")[1],0).getDate();
-  // Export/Import bar
-  let h=`<div style="padding:12px 14px 0;display:flex;justify-content:space-between;align-items:center;gap:8px">
+  // Export/Import/Backup/Restore bar
+  let h=`<div style="padding:12px 14px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
     <div style="font-size:13px;font-weight:800;color:#F8FAFC">${mlabelFull(S.activeMonth)}</div>
-    <div style="display:flex;gap:6px">
-      <button onclick="exportCSV()" style="background:linear-gradient(135deg,#0F766E,#065F46);border:none;color:#fff;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">⬇️ Export</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button onclick="exportCSV()" style="background:linear-gradient(135deg,#0F766E,#065F46);border:none;color:#fff;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">⬇️ CSV</button>
       <button onclick="document.getElementById('csvImportInput').click()" style="background:linear-gradient(135deg,#1E40AF,#1E3A8A);border:none;color:#fff;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">⬆️ Import</button>
+      <button onclick="backupData()" style="background:linear-gradient(135deg,#B45309,#92400E);border:none;color:#fff;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">📦 Backup</button>
+      <button onclick="document.getElementById('backupRestoreInput').click()" style="background:linear-gradient(135deg,#7C3AED,#5B21B6);border:none;color:#fff;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;">📥 Restore</button>
     </div>
   </div>
-  <input type="file" id="csvImportInput" accept=".csv" style="display:none" onchange="importCSV(this)"/>`;
+  <input type="file" id="csvImportInput" accept=".csv" style="display:none" onchange="importCSV(this)"/>
+  <input type="file" id="backupRestoreInput" accept=".json" style="display:none" onchange="restoreData(this)"/>`;
 
-  // Summary cards
+  // Summary card
   h+=`<div class="sec"><div class="sec-title">📅 ${mlabelFull(S.activeMonth)} Summary</div>
   <div style="background:var(--surface);border-radius:14px;padding:14px;margin-bottom:14px;">`;
   const summaryRows=[
-    {l:"Beginning Balance",v:fmt(bb),c:"#A78BFA"},
     {l:"Total Cash In",v:fmt(ti),c:"#34D399"},
     {l:"Regular Expenses",v:fmt(te),c:"#F87171"},
     ...(tcp>0?[{l:"CC / Installment Payments",v:fmt(tcp),c:"#F97316"}]:[]),
     {l:"Total Outflow",v:fmt(totalOut),c:"#F87171"},
-    {l:"Ending Balance",v:fmt(endBal),c:endBal>=0?"#60A5FA":"#F97316"},
+    {l:"Total Wallet Balance",v:fmt(totalWalletBal),c:totalWalletBal>=0?"#60A5FA":"#F97316"},
     {l:"No. of Transactions",v:me.length,c:"#FFE66D"},
     {l:"Avg Daily Spend",v:fmt(totalOut/Math.max(days,1)),c:"#FB923C"},
   ];
@@ -1078,42 +1104,43 @@ function renderReports(){
     </div>`;
   });
   h+=`</div>`;
-
-  // Expense breakdown per category — expandable
-  h+=`<div class="sec-title" style="margin-bottom:10px">🗂️ Expenses by Category — tap to expand</div>`;
-  const catRows=S.expCats.filter(c=>(bec[c.name]||0)>0).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
-  if(!catRows.length){h+=`<div class="empty">No expense data for this month.</div>`;}
-  catRows.forEach(c=>{
-    const spent=bec[c.name]||0;
-    const pct=te>0?((spent/te)*100).toFixed(1):0;
-    const catItems=me.filter(e=>e.category===c.name).sort((a,b)=>new Date(b.date)-new Date(a.date));
-    const isOpen=!!S.openReportCats[c.name];
-    h+=`<div class="report-cat-row" onclick="toggleReportCat('${c.name.replace(/'/g,"\\'")}')">
-      <div class="report-cat-header">
-        <span style="font-size:19px">${c.icon}</span>
-        <div style="flex:1">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:13px;font-weight:800">${c.name}</span>
-            <span style="font-size:13px;font-weight:900;color:${c.color}">${fmt(spent)}</span>
-          </div>
-          <div style="font-size:10px;color:var(--muted);margin-top:1px">${pct}% of total · ${catItems.length} item${catItems.length!==1?"s":""}</div>
-          <div class="progress-track" style="margin-top:5px"><div class="progress-fill" style="width:${pct}%;background:${c.color}"></div></div>
-        </div>
-        <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
-      </div>
-      <div class="report-cat-detail${isOpen?" open":""}">`;
-    catItems.forEach(e=>{
-      h+=`<div class="detail-item">
-        <span style="color:var(--text)">${e.date} ${e.note?`· <span style="color:var(--muted)">${e.note}</span>`:"(no note)"}</span>
-        <span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span>
-      </div>`;
-    });
-    h+=`<div class="detail-item" style="font-weight:900;color:${c.color}"><span>Total</span><span>${fmt(spent)}</span></div>`;
-    h+=`</div></div>`;
-  });
+  h+=`<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:-4px">Tap-to-expand breakdowns are on the Home tab</div>`;
   h+=`</div>`;
   document.getElementById("content").innerHTML=h;
   removeFabs();
+}
+
+function backupData(){
+  const backup={
+    expenses:S.expenses,incomes:S.incomes,budgets:S.budgets,expCats:S.expCats,incCats:S.incCats,
+    transfers:S.transfers||[],funds:S.funds||[],installments:S.installments||[],
+    budgetRules:S.budgetRules||{},creditCards:S.creditCards||[],expBeginBal:S.expBeginBal||{},
+  };
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=`PesoTrack_Backup_${today()}.json`;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},500);
+  flash("✅ Backup downloaded!");
+}
+
+async function restoreData(input){
+  const file=input.files[0];if(!file)return;
+  if(!confirm("Restore will overwrite all current data with this backup. Continue?")){input.value="";return;}
+  try{
+    const data=JSON.parse(await file.text());
+    S.expenses=data.expenses||[];S.incomes=data.incomes||[];S.budgets=data.budgets||{};
+    S.expCats=data.expCats||S.expCats;S.incCats=data.incCats||S.incCats;
+    S.transfers=data.transfers||[];S.funds=data.funds||[];S.installments=data.installments||[];
+    S.budgetRules=data.budgetRules||{};S.creditCards=data.creditCards||[];S.expBeginBal=data.expBeginBal||{};
+    await persist();
+    flash("✅ Backup restored!");
+    renderReports();
+  }catch(err){
+    flash("⚠️ Invalid backup file");
+  }
+  input.value="";
 }
 
 function toggleReportCat(name){
