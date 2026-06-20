@@ -362,9 +362,6 @@ function addFabs(mainColor,mainFn,showTransfer){
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDashboard(){
-  const bec=byCat(mExp(),"category",S.expCats);
-  const bic=byCat(mInc(),"source",S.incCats);
-
   let h=`<div class="sec"><div class="sec-row"><div class="sec-title">👛 My Funds / Wallets</div><button class="btn-blue" onclick="openFunds()">⚙️ Manage</button></div>`;
   if(!S.funds||S.funds.length===0){
     h+=`<div style="background:var(--surface);border-radius:12px;padding:14px;text-align:center;margin-bottom:4px;">
@@ -388,50 +385,8 @@ function renderDashboard(){
   }
   h+=`</div>`;
 
-  // Income sources
-  const incRows=S.incCats.filter(c=>bic[c.name]>0);
-  if(incRows.length){
-    h+=`<div class="sec"><div class="sec-title">💵 Cash Inflow Sources</div>`;
-    incRows.forEach(c=>{h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body"><div class="row-name">${c.name}</div></div><div class="row-amount" style="color:${c.color}">${fmt(bic[c.name])}</div></div>`;});
-    h+=`</div>`;
-  }
-
-  // Expenses by category
-  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">📊 Expenses by Category</div><div style="display:flex;gap:6px"><button class="btn-gray" onclick="openBeginBal()" style="font-size:10px">📊 Beg Bal</button><button class="btn-blue" onclick="openBudgets()">Budgets</button></div></div>`;
-  const rows=S.expCats.filter(c=>(bec[c.name]||0)>0||S.budgets[c.name]).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
-  if(!rows.length)h+=`<div class="empty">No expenses yet.</div>`;
-  const me=mExp();
-  rows.forEach(c=>{
-    const spent=bec[c.name]||0,budget=S.budgets[c.name]||0,pct=budget?(spent/budget)*100:0;
-    const catItems=me.filter(e=>e.category===c.name).sort((a,b)=>new Date(b.date)-new Date(a.date));
-    const isOpen=!!S.openReportCats["dash_"+c.name];
-    h+=`<div class="report-cat-row" onclick="toggleDashCat('${c.name.replace(/'/g,"\\'")}')">
-      <div class="report-cat-header">
-        <span style="font-size:19px">${c.icon}</span>
-        <div style="flex:1">
-          <div style="display:flex;justify-content:space-between;align-items:center"><span class="row-name">${c.name}</span><span style="font-size:13px;font-weight:800;color:${c.color}">${fmt(spent)}${budget?` <span style="color:var(--muted);font-size:10px">/ ${fmt(budget)}</span>`:""}</span></div>
-          ${budget>0?`<div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,pct)}%;background:${pct>90?"#EF4444":c.color}"></div></div>`:""}
-        </div>
-        <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
-      </div>
-      <div class="report-cat-detail${isOpen?" open":""}">`;
-    catItems.forEach(e=>{
-      h+=`<div class="detail-item">
-        <span style="color:var(--text)">${e.date} ${e.note?`· <span style="color:var(--muted)">${e.note}</span>`:"(no note)"}</span>
-        <span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span>
-      </div>`;
-    });
-    h+=`<div class="detail-item" style="font-weight:900;color:${c.color}"><span>Total</span><span>${fmt(spent)}</span></div>`;
-    h+=`</div></div>`;
-  });
-  h+=`</div>`;
   document.getElementById("content").innerHTML=h;
   removeFabs();
-}
-
-function toggleDashCat(name){
-  S.openReportCats["dash_"+name]=!S.openReportCats["dash_"+name];
-  renderDashboard();
 }
 
 // ─── EXPENSES ────────────────────────────────────────────────
@@ -770,9 +725,19 @@ async function delInstallPay(instId,payId){
 function renderIncome(){
   const mi=mInc();
   const transfers=(S.transfers||[]).filter(t=>mkey(new Date(t.date))===S.activeMonth);
+  const bic=byCat(mi,"source",S.incCats);
+
+  let h="";
+
+  // Cash Inflow Sources summary
+  const incRows=S.incCats.filter(c=>bic[c.name]>0);
+  if(incRows.length){
+    h+=`<div class="sec"><div class="sec-title">💵 Cash Inflow Sources</div>`;
+    incRows.forEach(c=>{h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body"><div class="row-name">${c.name}</div></div><div class="row-amount" style="color:${c.color}">${fmt(bic[c.name])}</div></div>`;});
+    h+=`</div>`;
+  }
 
   // ── Cash In by Category (collapsible) ────────────────────
-  let h="";
   const totalIn=mi.reduce((s,i)=>s+i.amount,0);
   h+=`<div class="sec"><div class="sec-row"><div class="sec-title">💵 Cash In by Source — tap to expand</div><button class="btn-gray" onclick="openCats('income')">⚙️ Cats</button></div>`;
 
@@ -1005,6 +970,7 @@ function renderReports(){
   const totalOut=te+tcp;
   const totalWalletBal=(S.funds||[]).reduce((s,f)=>s+getFundBalance(f.id,S.activeMonth),0);
   const me=mExp();
+  const bec=byCat(me,"category",S.expCats);
   const days=new Date(S.activeMonth.split("-")[0],S.activeMonth.split("-")[1],0).getDate();
   // Export/Import/Backup/Restore bar
   let h=`<div style="padding:12px 14px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1037,11 +1003,43 @@ function renderReports(){
       <span style="font-weight:900;color:${r.c}">${r.v}</span>
     </div>`;
   });
-  h+=`</div>`;
-  h+=`<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:-4px">Tap-to-expand breakdowns are on the Home tab</div>`;
+  h+=`</div></div>`;
+
+  // Expenses by category — expandable
+  h+=`<div class="sec"><div class="sec-row"><div class="sec-title">📊 Expenses by Category</div><div style="display:flex;gap:6px"><button class="btn-gray" onclick="openBeginBal()" style="font-size:10px">📊 Beg Bal</button><button class="btn-blue" onclick="openBudgets()">Budgets</button></div></div>`;
+  const catRows=S.expCats.filter(c=>(bec[c.name]||0)>0||S.budgets[c.name]).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
+  if(!catRows.length)h+=`<div class="empty">No expenses yet.</div>`;
+  catRows.forEach(c=>{
+    const spent=bec[c.name]||0,budget=S.budgets[c.name]||0,pct=budget?(spent/budget)*100:0;
+    const catItems=me.filter(e=>e.category===c.name).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const isOpen=!!S.openReportCats["dash_"+c.name];
+    h+=`<div class="report-cat-row" onclick="toggleDashCat('${c.name.replace(/'/g,"\\'")}')">
+      <div class="report-cat-header">
+        <span style="font-size:19px">${c.icon}</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span class="row-name">${c.name}</span><span style="font-size:13px;font-weight:800;color:${c.color}">${fmt(spent)}${budget?` <span style="color:var(--muted);font-size:10px">/ ${fmt(budget)}</span>`:""}</span></div>
+          ${budget>0?`<div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,pct)}%;background:${pct>90?"#EF4444":c.color}"></div></div>`:""}
+        </div>
+        <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
+      </div>
+      <div class="report-cat-detail${isOpen?" open":""}">`;
+    catItems.forEach(e=>{
+      h+=`<div class="detail-item">
+        <span style="color:var(--text)">${e.date} ${e.note?`· <span style="color:var(--muted)">${e.note}</span>`:"(no note)"}</span>
+        <span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span>
+      </div>`;
+    });
+    h+=`<div class="detail-item" style="font-weight:900;color:${c.color}"><span>Total</span><span>${fmt(spent)}</span></div>`;
+    h+=`</div></div>`;
+  });
   h+=`</div>`;
   document.getElementById("content").innerHTML=h;
   removeFabs();
+}
+
+function toggleDashCat(name){
+  S.openReportCats["dash_"+name]=!S.openReportCats["dash_"+name];
+  renderReports();
 }
 
 function backupData(){
