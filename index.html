@@ -109,23 +109,6 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .cat-edit-row{display:flex;gap:7px;align-items:center;background:var(--surface);border-radius:11px;padding:9px 12px;margin-bottom:7px;}
 .cat-name-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;font-weight:700;font-family:'Nunito',sans-serif;outline:none;}
 .cat-name-input:focus{border-color:var(--accent);}
-/* VOICE */
-.voice-modal{position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:500;opacity:0;pointer-events:none;transition:opacity 0.22s;}
-.voice-modal.open{opacity:1;pointer-events:all;}
-.voice-box{background:var(--surface);border-radius:26px;padding:26px 20px 22px;width:calc(100% - 36px);max-width:360px;text-align:center;}
-.voice-orb{width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,#3B82F6,#7C3AED);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:36px;cursor:pointer;}
-.voice-orb.listening{animation:porb 1s ease-in-out infinite;}
-@keyframes porb{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.6);}50%{box-shadow:0 0 0 20px rgba(59,130,246,0);}}
-.voice-status{font-size:13px;font-weight:800;color:var(--muted);margin-bottom:9px;}
-.voice-transcript{font-size:13px;color:var(--text);min-height:42px;background:var(--surface2);border-radius:11px;padding:9px 13px;margin-bottom:9px;line-height:1.5;text-align:left;border:1px solid var(--border);}
-.voice-result{background:rgba(52,211,153,0.08);border:1px solid #34D39944;border-radius:11px;padding:11px 13px;margin-bottom:9px;font-size:13px;color:var(--green);text-align:left;display:none;line-height:1.6;}
-.voice-result.show{display:block;}
-.voice-tips{font-size:11px;color:var(--muted2);line-height:1.7;background:var(--surface2);border-radius:9px;padding:8px 11px;margin-bottom:13px;text-align:left;}
-.voice-btns{display:flex;gap:9px;}
-.voice-btns button{flex:1;padding:12px;border-radius:11px;border:none;font-size:13px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;}
-.vbtn-cancel{background:#334155;color:#CBD5E1;}
-.vbtn-retry{background:var(--accent);color:#fff;}
-.vbtn-confirm{background:var(--green);color:#0F172A;}
 /* INSTALLMENTS */
 .inst-card{background:var(--surface);border-radius:14px;padding:13px 14px;margin-bottom:9px;border-left:4px solid #94A3B8;}
 .inst-header{display:flex;align-items:center;gap:10px;cursor:pointer;}
@@ -196,31 +179,6 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="overlay" id="modalBeginBal"><div class="sheet" id="sheetBeginBal"></div></div>
 <div class="overlay" id="modalCreditCards"><div class="sheet" id="sheetCreditCards"></div></div>
 <!-- VOICE -->
-<div class="voice-modal" id="voiceModal">
-  <div class="voice-box">
-    <div style="font-size:15px;font-weight:900;color:#F8FAFC;margin-bottom:16px;">🎙️ Voice Entry</div>
-    <div class="voice-orb" id="voiceOrb" onclick="toggleListening()">🎙️</div>
-    <div class="voice-status" id="voiceStatus">Tap mic to start</div>
-    <div class="voice-transcript" id="voiceTranscript" style="color:var(--muted2);">Your voice will appear here…</div>
-    <div class="voice-result" id="voiceResult"></div>
-    <div id="voiceDateWrap" style="display:none;margin-bottom:9px;">
-      <div class="field-label" style="margin-bottom:4px;">📅 Date of transaction</div>
-      <input type="date" id="voiceDateInput" style="margin-bottom:0"/>
-    </div>
-    <div id="voiceFundWrap" style="display:none;margin-bottom:9px;">
-      <div class="field-label" style="margin-bottom:4px;">💳 Paid from / Charged to</div>
-      <select id="voicePayMode" style="margin-bottom:0">
-        <option value="">— Cash / Untracked —</option>
-      </select>
-    </div>
-    <div class="voice-tips">💡 Try: "Spent 250 on food" · "Paid 500 transport" · "Income 5000 salary" · Include date: "yesterday 300 groceries" · "April 23 food 500"</div>
-    <div class="voice-btns">
-      <button class="vbtn-cancel" onclick="closeVoice()">✕ Cancel</button>
-      <button class="vbtn-retry" id="voiceRetryBtn" onclick="retryVoice()" style="display:none">🔄 Retry</button>
-      <button class="vbtn-confirm" id="voiceConfirmBtn" onclick="confirmVoice()" style="display:none">✅ Save</button>
-    </div>
-  </div>
-</div>
 
 <script>
 // ─── SEED DATA FROM IMPORT ───────────────────────────────────
@@ -338,8 +296,6 @@ function closeM(id){document.getElementById(id).classList.remove("open");}
 ["modalAddExp","modalAddInc","modalBudgets","modalCats","modalTransfer","modalCatDetail","modalFunds","modalInstall","modalInstallPay","modalEditExp","modalEditInc","modalBeginBal","modalCreditCards"].forEach(id=>{
   document.getElementById(id).addEventListener("click",function(e){if(e.target===this)closeM(id);});
 });
-document.getElementById("voiceModal").addEventListener("click",function(e){if(e.target===this)closeVoice();});
-
 // ─── NAV ─────────────────────────────────────────────────────
 function renderNav(){
   const tabs=[{id:"dashboard",icon:"🏠",l:"Home"},{id:"expenses",icon:"💸",l:"Expenses"},{id:"income",icon:"💵",l:"Cash In"},{id:"reports",icon:"📊",l:"Reports"}];
@@ -384,16 +340,9 @@ function setM(m){S.activeMonth=m;render();}
 
 // ─── FAB GROUP ───────────────────────────────────────────────
 function removeFabs(){const f=document.getElementById("fabGroup");if(f)f.remove();}
-function addFabs(mainColor,mainFn,voiceCtx,showTransfer){
+function addFabs(mainColor,mainFn,showTransfer){
   removeFabs();
   const g=document.createElement("div");g.id="fabGroup";g.className="fab-group";
-  // Voice
-  const vb=document.createElement("button");
-  vb.className="fab fab-sm";
-  vb.style.cssText=`background:linear-gradient(135deg,#5B21B6,#2563EB);box-shadow:0 3px 14px #5B21B677`;
-  vb.innerHTML="🎙️";vb.title="Voice";vb.onclick=()=>openVoice(voiceCtx);
-  const vl=document.createElement("div");vl.className="fab-lbl";vl.textContent="VOICE";
-  g.appendChild(vb);g.appendChild(vl);
   // Transfer btn
   if(showTransfer){
     const tb=document.createElement("button");
@@ -413,44 +362,31 @@ function addFabs(mainColor,mainFn,voiceCtx,showTransfer){
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDashboard(){
-  const bb=getBeginningBalance(S.activeMonth);
-  const ti=tInc(),te=tExp(),tcp=tInstallPay();
-  const totalOut=te+tcp;
-  const endBal=bb+ti-totalOut;
   const bec=byCat(mExp(),"category",S.expCats);
   const bic=byCat(mInc(),"source",S.incCats);
 
-  let h=`<div class="bal-row">
-    <div class="card" style="border-top:2px solid #A78BFA">
-      <div class="card-label">Beg Balance</div>
-      <div class="card-value" style="color:#A78BFA">${fmtShort(bb)}</div>
-    </div>
-    <div class="card" style="border-top:2px solid #34D399">
-      <div class="card-label">Cash In</div>
-      <div class="card-value" style="color:#34D399">${fmtShort(ti)}</div>
-    </div>
-    <div class="card" style="border-top:2px solid #F87171">
-      <div class="card-label">Expenses${tcp>0?" + CC":""}</div>
-      <div class="card-value" style="color:#F87171">${fmtShort(totalOut)}</div>
-    </div>
-  </div>
-  ${tcp>0?`<div style="padding:4px 14px 0;display:flex;gap:8px">
-    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
-      <span style="color:var(--muted)">Regular Expenses</span><span style="color:#F87171;font-weight:800">${fmt(te)}</span>
-    </div>
-    <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;font-size:11px">
-      <span style="color:var(--muted)">CC Payments</span><span style="color:#F97316;font-weight:800">${fmt(tcp)}</span>
-    </div>
-  </div>`:""}
-  <div style="padding:8px 14px 0">
-    <div class="card" style="border-top:2px solid ${endBal>=0?"#60A5FA":"#F97316"};display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div class="card-label">Ending Balance (forwarded next month)</div>
-        <div class="card-value" style="color:${endBal>=0?"#60A5FA":"#F97316"};font-size:18px">${fmt(endBal)}</div>
-      </div>
-      <div style="font-size:28px">💰</div>
-    </div>
-  </div>`;
+  let h=`<div class="sec"><div class="sec-row"><div class="sec-title">👛 My Funds / Wallets</div><button class="btn-blue" onclick="openFunds()">⚙️ Manage</button></div>`;
+  if(!S.funds||S.funds.length===0){
+    h+=`<div style="background:var(--surface);border-radius:12px;padding:14px;text-align:center;margin-bottom:4px;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Track GCash, BPI, Maya, and other wallets</div>
+      <button class="btn-blue" onclick="openFunds()">+ Add Funds</button>
+    </div>`;
+  } else {
+    S.funds.forEach(f=>{
+      const carryBal=getFundBalance(f.id,S.activeMonth);
+      h+=`<div class="row" style="border-left:3px solid ${f.color}">
+        <span style="font-size:20px">${f.icon}</span>
+        <div class="row-body">
+          <div class="row-name">${f.name}</div>
+          <div style="font-size:10px;color:var(--muted)">Running balance</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:14px;font-weight:900;color:${carryBal>=0?"#60A5FA":"#F97316"}">${fmt(carryBal)}</div>
+        </div>
+      </div>`;
+    });
+  }
+  h+=`</div>`;
 
   // Income sources
   const incRows=S.incCats.filter(c=>bic[c.name]>0);
@@ -464,16 +400,38 @@ function renderDashboard(){
   h+=`<div class="sec"><div class="sec-row"><div class="sec-title">📊 Expenses by Category</div><div style="display:flex;gap:6px"><button class="btn-gray" onclick="openBeginBal()" style="font-size:10px">📊 Beg Bal</button><button class="btn-blue" onclick="openBudgets()">Budgets</button></div></div>`;
   const rows=S.expCats.filter(c=>(bec[c.name]||0)>0||S.budgets[c.name]).sort((a,b)=>(bec[b.name]||0)-(bec[a.name]||0));
   if(!rows.length)h+=`<div class="empty">No expenses yet.</div>`;
+  const me=mExp();
   rows.forEach(c=>{
     const spent=bec[c.name]||0,budget=S.budgets[c.name]||0,pct=budget?(spent/budget)*100:0;
-    h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body">
-      <div style="display:flex;justify-content:space-between;align-items:center"><span class="row-name">${c.name}</span><span style="font-size:13px;font-weight:800;color:${c.color}">${fmt(spent)}${budget?` <span style="color:var(--muted);font-size:10px">/ ${fmt(budget)}</span>`:""}</span></div>
-      ${budget>0?`<div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,pct)}%;background:${pct>90?"#EF4444":c.color}"></div></div>`:""}
-    </div></div>`;
+    const catItems=me.filter(e=>e.category===c.name).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const isOpen=!!S.openReportCats["dash_"+c.name];
+    h+=`<div class="report-cat-row" onclick="toggleDashCat('${c.name.replace(/'/g,"\\'")}')">
+      <div class="report-cat-header">
+        <span style="font-size:19px">${c.icon}</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span class="row-name">${c.name}</span><span style="font-size:13px;font-weight:800;color:${c.color}">${fmt(spent)}${budget?` <span style="color:var(--muted);font-size:10px">/ ${fmt(budget)}</span>`:""}</span></div>
+          ${budget>0?`<div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,pct)}%;background:${pct>90?"#EF4444":c.color}"></div></div>`:""}
+        </div>
+        <span style="color:var(--muted);font-size:14px;margin-left:6px">${isOpen?"▲":"▼"}</span>
+      </div>
+      <div class="report-cat-detail${isOpen?" open":""}">`;
+    catItems.forEach(e=>{
+      h+=`<div class="detail-item">
+        <span style="color:var(--text)">${e.date} ${e.note?`· <span style="color:var(--muted)">${e.note}</span>`:"(no note)"}</span>
+        <span style="color:#F87171;font-weight:800">-${fmt(e.amount)}</span>
+      </div>`;
+    });
+    h+=`<div class="detail-item" style="font-weight:900;color:${c.color}"><span>Total</span><span>${fmt(spent)}</span></div>`;
+    h+=`</div></div>`;
   });
   h+=`</div>`;
   document.getElementById("content").innerHTML=h;
   removeFabs();
+}
+
+function toggleDashCat(name){
+  S.openReportCats["dash_"+name]=!S.openReportCats["dash_"+name];
+  renderDashboard();
 }
 
 // ─── EXPENSES ────────────────────────────────────────────────
@@ -591,13 +549,12 @@ function renderExpenses(){
   if(!me.length)h+=`<div class="empty">No expenses. Tap + to add.</div>`;
   me.forEach(e=>{
     const c=S.expCats.find(x=>x.name===e.category)||{icon:"📦",color:"#94A3B8"};
-    const vtag=e.viaVoice?`<span style="font-size:9px;background:#3B82F622;color:#60A5FA;border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">🎙️</span>`:"";
     const fund=e.fundId?(S.funds||[]).find(f=>f.id===e.fundId):null;
     const ftag=fund?`<span style="font-size:9px;background:#0F766E22;color:#34D399;border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">💳 ${fund.name}</span>`:"";
     const inst=e.installId?(S.installments||[]).find(x=>x.id===e.installId):null;
-    const itag=inst?`<span style="font-size:9px;background:#F8717122;color:#F87171;border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">📋 ${inst.name}</span>`:""
-;    const ccard=e.ccId?(S.creditCards||[]).find(cd=>cd.id===e.ccId):null;
-    h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body"><div class="row-name">${e.category}${vtag}${ftag}${itag}${ccard?`<span style="font-size:9px;background:${ccard.color}22;color:${ccard.color};border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">💳 ${ccard.name.replace("Credit Card","CC")}</span>`:""}</div>${e.note?`<div class="row-note">${e.note}</div>`:""}<div class="row-date">${e.date}</div></div><div class="row-amount" style="color:#F87171">-${fmt(e.amount)}</div><button style="background:none;border:none;color:#60A5FA;font-size:14px;cursor:pointer;padding:0 3px;flex-shrink:0" onclick="openEditExp(${e.id})">✏️</button><button class="del-btn" onclick="delExp(${e.id})">🗑</button></div>`;
+    const itag=inst?`<span style="font-size:9px;background:#F8717122;color:#F87171;border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">📋 ${inst.name}</span>`:"";
+    const ccard=e.ccId?(S.creditCards||[]).find(cd=>cd.id===e.ccId):null;
+    h+=`<div class="row"><span style="font-size:19px">${c.icon}</span><div class="row-body"><div class="row-name">${e.category}${ftag}${itag}${ccard?`<span style="font-size:9px;background:${ccard.color}22;color:${ccard.color};border-radius:4px;padding:1px 4px;font-weight:800;margin-left:3px;">💳 ${ccard.name.replace("Credit Card","CC")}</span>`:""}</div>${e.note?`<div class="row-note">${e.note}</div>`:""}<div class="row-date">${e.date}</div></div><div class="row-amount" style="color:#F87171">-${fmt(e.amount)}</div><button style="background:none;border:none;color:#60A5FA;font-size:14px;cursor:pointer;padding:0 3px;flex-shrink:0" onclick="openEditExp(${e.id})">✏️</button><button class="del-btn" onclick="delExp(${e.id})">🗑</button></div>`;
   });
   // Transfer entries from fund transfers
   (S.transfers||[]).filter(t=>mkey(new Date(t.date))===S.activeMonth).forEach(t=>{
@@ -605,7 +562,7 @@ function renderExpenses(){
   });
   h+=`</div>`;
   document.getElementById("content").innerHTML=h;
-  addFabs("#EF4444",openAddExp,"expense",true);
+  addFabs("#EF4444",openAddExp,true);
 }
 
 // ─── INSTALLMENT HELPERS ──────────────────────────────────────
@@ -814,31 +771,8 @@ function renderIncome(){
   const mi=mInc();
   const transfers=(S.transfers||[]).filter(t=>mkey(new Date(t.date))===S.activeMonth);
 
-  // ── Funds section (retained) ──────────────────────────────
-  let h=`<div class="sec"><div class="sec-row"><div class="sec-title">👛 My Funds / Wallets</div><button class="btn-blue" onclick="openFunds()">⚙️ Manage</button></div>`;
-  if(!S.funds||S.funds.length===0){
-    h+=`<div style="background:var(--surface);border-radius:12px;padding:14px;text-align:center;margin-bottom:4px;">
-      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Track GCash, BPI, Maya, and other wallets</div>
-      <button class="btn-blue" onclick="openFunds()">+ Add Funds</button>
-    </div>`;
-  } else {
-    S.funds.forEach(f=>{
-      const carryBal=getFundBalance(f.id,S.activeMonth);
-      h+=`<div class="row" style="border-left:3px solid ${f.color}">
-        <span style="font-size:20px">${f.icon}</span>
-        <div class="row-body">
-          <div class="row-name">${f.name}</div>
-          <div style="font-size:10px;color:var(--muted)">Running balance</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:14px;font-weight:900;color:${carryBal>=0?"#60A5FA":"#F97316"}">${fmt(carryBal)}</div>
-        </div>
-      </div>`;
-    });
-  }
-  h+=`</div>`;
-
   // ── Cash In by Category (collapsible) ────────────────────
+  let h="";
   const totalIn=mi.reduce((s,i)=>s+i.amount,0);
   h+=`<div class="sec"><div class="sec-row"><div class="sec-title">💵 Cash In by Source — tap to expand</div><button class="btn-gray" onclick="openCats('income')">⚙️ Cats</button></div>`;
 
@@ -923,7 +857,7 @@ function renderIncome(){
 
   h+=`</div>`;
   document.getElementById("content").innerHTML=h;
-  addFabs("#10B981",openAddInc,"income",false);
+  addFabs("#10B981",openAddInc,false);
 }
 
 function toggleIncCat(name){
@@ -1587,24 +1521,24 @@ function importCSV(input){
   reader.readAsText(file);
 }
 function exportCSV(){
-  const rows=[["Type","Date","Category/Source","Amount","Note","Fund","PayMode","IsVoice"]];
+  const rows=[["Type","Date","Category/Source","Amount","Note","Fund","PayMode"]];
   S.expenses.forEach(e=>{
     const f=(S.funds||[]).find(x=>x.id===e.fundId);
-    rows.push(["Expense",e.date,e.category,e.amount,e.note||"",f?f.name:"",e.payMode||"",e.viaVoice?"yes":""]);
+    rows.push(["Expense",e.date,e.category,e.amount,e.note||"",f?f.name:"",e.payMode||""]);
   });
   S.incomes.forEach(i=>{
     const f=(S.funds||[]).find(x=>x.id===i.fundId);
-    rows.push(["Income",i.date,i.source,i.amount,i.note||"",f?f.name:"","",i.viaVoice?"yes":""]);
+    rows.push(["Income",i.date,i.source,i.amount,i.note||"",f?f.name:"",""]);
   });
   (S.transfers||[]).forEach(t=>{
-    rows.push(["Transfer",t.date,`${t.fromFundName} → ${t.toFundName}`,t.amount,t.note||"","","",""]);
+    rows.push(["Transfer",t.date,`${t.fromFundName} → ${t.toFundName}`,t.amount,t.note||"","",""]);
   });
   // Installment summary
   (S.installments||[]).forEach(inst=>{
-    rows.push(["Installment",inst.startDate,inst.name,inst.totalAmount,`${inst.creditor||""} · ${inst.termMonths}mo @ ${inst.monthlyAmount}/mo`,"","",""]);
+    rows.push(["Installment",inst.startDate,inst.name,inst.totalAmount,`${inst.creditor||""} · ${inst.termMonths}mo @ ${inst.monthlyAmount}/mo`,"",""]);
     (inst.payments||[]).forEach(p=>{
       const f=(S.funds||[]).find(x=>x.id===p.fundId);
-      rows.push(["InstallPayment",p.date,inst.name,p.amount,p.note||"",f?f.name:"","",""]);
+      rows.push(["InstallPayment",p.date,inst.name,p.amount,p.note||"",f?f.name:"",""]);
     });
   });
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
@@ -1855,149 +1789,6 @@ function render(){
   else if(S.tab==="income")renderIncome();
   else renderReports();
 }
-
-// ═══════════════════════════════════════════════════════════════
-// ─── VOICE COMMAND ENGINE ────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════
-let recognition=null,voiceListening=false,voiceParsed=null,voiceContext="expense";
-const EXP_KW={Food:["food","eat","meal","lunch","dinner","breakfast","kain","ulam","merienda","snack","pizza","burger"],Restaurant:["restaurant","resto","shawarma","fast food","fastfood","jollibee","mcdo"],Coffee:["coffee","cafe","kape","starbucks","boba","milk tea","cha","tumbler"],Transport:["transport","fare","jeep","jeepney","tricycle","grab","taxi","bus","mrt","lrt","angkas","pasahe"],Travel:["travel","airfare","hotel","trip"],Family:["family","pamilya","anak","mama","papa"],Groceries:["groceries","grocery","market","palengke","supermarket","gulay"],Health:["medicine","health","doctor","hospital","gamot","pharmacy","botika","vitamins"],Shopping:["shopping","mall","bought","dress","clothes"],Utilities:["electric","water","bill","internet","wifi","meralco","globe","smart","kuryente","tubig"],Entertainment:["entertainment","netflix","spotify","movie","games","concert"],Savings:["savings","save","ipon"],};
-const INC_KW={Salary:["salary","sweldo","payroll","pay","sahod"],Hostel:["hostel","room"],Business:["business","sale","sales","tindahan","negosyo"],Receivable:["receivable","utang","bayad","collect"],Extra:["extra","bonus","allowance"]};
-
-function matchCatByKW(text,cats,kwMap){
-  const t=text.toLowerCase();
-  for(const c of cats)if(t.includes(c.name.toLowerCase()))return c.name;
-  for(const[catName,keys]of Object.entries(kwMap)){if(keys.some(k=>t.includes(k))){const f=cats.find(c=>c.name.toLowerCase()===catName.toLowerCase());if(f)return f.name;}}
-  return null;
-}
-function initRecognition(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return null;
-  const r=new SR();r.lang="en-PH";r.continuous=false;r.interimResults=true;r.maxAlternatives=5;
-  r.onstart=()=>{voiceListening=true;document.getElementById("voiceOrb").classList.add("listening");document.getElementById("voiceStatus").textContent="🔴 Listening…";document.getElementById("voiceTranscript").style.color="var(--text)";document.getElementById("voiceTranscript").textContent="";};
-  r.onresult=e=>{let interim="",final="";for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)final+=e.results[i][0].transcript;else interim+=e.results[i][0].transcript;}document.getElementById("voiceTranscript").textContent=final||interim;if(final)parseVoiceText(final);};
-  r.onerror=e=>{stopListening();const msgs={"not-allowed":"🚫 Mic denied","no-speech":"🤫 No speech","network":"📶 Network error"};document.getElementById("voiceStatus").textContent=msgs[e.error]||"⚠️ Error";showVoiceRetry();};
-  r.onend=()=>{stopListening();if(!voiceParsed)showVoiceRetry();};
-  return r;
-}
-function showVoiceRetry(){document.getElementById("voiceRetryBtn").style.display="";if(!voiceParsed)document.getElementById("voiceStatus").textContent="Tap mic or retry";}
-function stopListening(){voiceListening=false;const o=document.getElementById("voiceOrb");if(o)o.classList.remove("listening");}
-function toggleListening(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){document.getElementById("voiceStatus").textContent="❌ Not supported";document.getElementById("voiceTranscript").textContent="Try Chrome or Safari iOS 15+.";return;}
-  if(!recognition)recognition=initRecognition();
-  if(voiceListening){recognition.stop();}
-  else{voiceParsed=null;document.getElementById("voiceResult").classList.remove("show");document.getElementById("voiceConfirmBtn").style.display="none";document.getElementById("voiceRetryBtn").style.display="none";document.getElementById("voiceTranscript").style.color="var(--text)";try{recognition.start();}catch(e){recognition=initRecognition();recognition.start();}}
-}
-function retryVoice(){document.getElementById("voiceRetryBtn").style.display="none";document.getElementById("voiceConfirmBtn").style.display="none";document.getElementById("voiceResult").classList.remove("show");document.getElementById("voiceDateWrap").style.display="none";document.getElementById("voiceFundWrap").style.display="none";voiceParsed=null;toggleListening();}
-
-// ─── VOICE DATE PARSING ──────────────────────────────────────
-function parseVoiceDate(text){
-  const t=text.toLowerCase();
-  const now=new Date();
-  // "yesterday"
-  if(/yesterday|kahapon/.test(t)){
-    const d=new Date(now);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);
-  }
-  // "2 days ago", "3 days ago"
-  const daysAgo=t.match(/(\d+)\s*days?\s*ago/);
-  if(daysAgo){const d=new Date(now);d.setDate(d.getDate()-parseInt(daysAgo[1]));return d.toISOString().slice(0,10);}
-  // "last monday/tuesday..." etc
-  const days=["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
-  for(let i=0;i<days.length;i++){
-    if(t.includes("last "+days[i])||t.includes(days[i])){
-      const d=new Date(now);
-      const diff=(d.getDay()-i+7)%7||7;
-      d.setDate(d.getDate()-diff);
-      if(diff>0&&diff<=7)return d.toISOString().slice(0,10);
-    }
-  }
-  // "april 23", "april 23rd", "23 april"
-  const months=["january","february","march","april","may","june","july","august","september","october","november","december"];
-  for(let mi=0;mi<months.length;mi++){
-    const mn=months[mi];
-    let dm=t.match(new RegExp(mn+"\\s+(\\d{1,2})(?:st|nd|rd|th)?"));
-    if(!dm)dm=t.match(new RegExp("(\\d{1,2})(?:st|nd|rd|th)?\\s+"+mn));
-    if(dm){
-      const day=parseInt(dm[1]);
-      const yr=now.getFullYear();
-      const candidate=new Date(yr,mi,day);
-      if(candidate>now)candidate.setFullYear(yr-1); // if in future, use last year
-      return candidate.toISOString().slice(0,10);
-    }
-  }
-  return today(); // default to today
-}
-
-function parseVoiceText(text){
-  const t=text.toLowerCase().trim();
-  const numMatch=t.match(/(\d[\d,]*(?:\.\d+)?)/);
-  const amount=numMatch?parseFloat(numMatch[1].replace(/,/g,"")):null;
-  const isIncome=/\b(income|received|earned|salary|cash in|kita|natanggap|inflow|got paid)\b/.test(t);
-  const isExpense=/\b(spent|expense|gastos|bayad|paid|pay|spend|bought|nagbayad)\b/.test(t);
-  let type=voiceContext,catName;
-  if(isIncome&&!isExpense){type="income";catName=matchCatByKW(t,S.incCats,INC_KW)||S.incCats[0].name;}
-  else{type="expense";catName=matchCatByKW(t,S.expCats,EXP_KW)||S.expCats[0].name;}
-  // Parse date from voice
-  const parsedDate=parseVoiceDate(t);
-  if(!amount){document.getElementById("voiceStatus").textContent="❓ No amount found";document.getElementById("voiceTranscript").textContent=`Heard: "${text}" — say an amount`;showVoiceRetry();return;}
-  voiceParsed={type,amount,catName,rawText:text,date:parsedDate};
-  const catObj=type==="expense"?S.expCats.find(c=>c.name===catName):S.incCats.find(c=>c.name===catName);
-  const emoji=catObj?.icon||(type==="expense"?"💸":"💵");
-  const isToday=parsedDate===today();
-  const r=document.getElementById("voiceResult");
-  r.innerHTML=`<strong>${type==="expense"?"💸 Expense":"💵 Income"}:</strong><br><br>${emoji} <strong>${catName}</strong> — <strong style="font-size:15px">${fmt(amount)}</strong><br><span style="color:${isToday?"var(--muted)":"#FFE66D"};font-size:11px">📅 ${parsedDate}${isToday?" (today)":""} · via voice — edit date below if needed</span>`;
-  r.classList.add("show");
-  // Show editable date
-  const dw=document.getElementById("voiceDateWrap");
-  const di=document.getElementById("voiceDateInput");
-  if(dw)dw.style.display="";
-  if(di)di.value=parsedDate;
-  document.getElementById("voiceStatus").textContent="✅ Confirm to save";
-  document.getElementById("voiceConfirmBtn").style.display="";
-  document.getElementById("voiceRetryBtn").style.display="";
-  document.getElementById("voiceFundWrap").style.display="";
-}
-async function confirmVoice(){
-  if(!voiceParsed)return;
-  const{type,amount,catName,rawText}=voiceParsed;
-  const dateEl=document.getElementById("voiceDateInput");
-  const finalDate=dateEl&&dateEl.value?dateEl.value:voiceParsed.date||today();
-  const payModeEl=document.getElementById("voicePayMode");
-  const payMode=payModeEl?payModeEl.value:"";
-  if(type==="expense"){
-    const entry={id:Date.now(),amount,category:catName,note:rawText,date:finalDate,viaVoice:true,payMode};
-    if(payMode.startsWith("fund:"))entry.fundId=payMode.slice(5);
-    if(payMode.startsWith("cc:"))entry.installId=payMode.slice(3);
-    S.expenses.push(entry);
-  } else {
-    const entry={id:Date.now(),amount,source:catName,note:rawText,date:finalDate,viaVoice:true};
-    if(payMode.startsWith("fund:"))entry.fundId=payMode.slice(5);
-    S.incomes.push(entry);
-  }
-  await persist();flash("✅ Saved via voice!");closeVoice();render();
-}
-function openVoice(ctx="expense"){
-  voiceContext=ctx;voiceParsed=null;
-  document.getElementById("voiceTranscript").textContent="Your voice will appear here…";
-  document.getElementById("voiceTranscript").style.color="var(--muted2)";
-  document.getElementById("voiceResult").classList.remove("show");
-  document.getElementById("voiceDateWrap").style.display="none";
-  document.getElementById("voiceFundWrap").style.display="none";
-  document.getElementById("voiceConfirmBtn").style.display="none";
-  document.getElementById("voiceRetryBtn").style.display="none";
-  document.getElementById("voiceStatus").textContent="Tap mic to start";
-  document.getElementById("voiceOrb").classList.remove("listening");
-  const funds=S.funds||[];
-  const installs=(S.installments||[]).filter(x=>installRemaining(x)>0);
-  const sel=document.getElementById("voicePayMode");
-  if(sel){
-    let opts='<option value="">\u2014 Cash / Untracked \u2014</option>';
-    if(funds.length)opts+='<optgroup label="\ud83d\udcb3 Pay from Fund">'+funds.map(f=>'<option value="fund:'+f.id+'">'+f.icon+' '+f.name+' · '+fmtShort(getFundBalance(f.id,S.activeMonth))+'</option>').join("")+'</optgroup>';
-    if(installs.length)opts+='<optgroup label="\ud83d\udccb Charge to Installment">'+installs.map(x=>'<option value="cc:'+x.id+'">'+x.icon+' '+x.name+'</option>').join("")+'</optgroup>';
-    sel.innerHTML=opts;
-  }
-  document.getElementById("voiceModal").classList.add("open");
-}
-function closeVoice(){if(recognition&&voiceListening)try{recognition.stop();}catch(e){}voiceListening=false;voiceParsed=null;document.getElementById("voiceDateWrap").style.display="none";document.getElementById("voiceFundWrap").style.display="none";document.getElementById("voiceModal").classList.remove("open");}
 
 // ─── INIT ────────────────────────────────────────────────────
 openDB().then(async()=>{
