@@ -1088,28 +1088,29 @@ function expFormHTML(prefill={},isEdit=false){
   // Resolve current payMode from any of the stored fields
   const curPayMode=prefill.payMode||(prefill.fundId?"fund:"+prefill.fundId:"")|(prefill.installId?"cc:"+prefill.installId:"");
   const numId=Number(prefill.id)||0;
+  const sfx=isEdit?"Edit":"";
   return`<div class="sheet-title">${isEdit?"✏️ Edit Expense":"➕ Add Expense"}</div>
     <div class="field-label">Amount (₱)</div>
-    <input type="number" id="eAmt" placeholder="0.00" inputmode="decimal" value="${prefill.amount||""}"/>
+    <input type="number" id="eAmt${sfx}" placeholder="0.00" inputmode="decimal" value="${prefill.amount||""}"/>
     <div class="field-label">Category</div>
-    <select id="eCat">${S.expCats.map(c=>`<option${c.name===(prefill.category||"")?" selected":""}>${c.name}</option>`).join("")}</select>
+    <select id="eCat${sfx}">${S.expCats.map(c=>`<option${c.name===(prefill.category||"")?" selected":""}>${c.name}</option>`).join("")}</select>
     <div class="field-label">💳 Paid from / Charged to</div>
-    <select id="ePayMode" onchange="toggleExpPayMode()">
+    <select id="ePayMode${sfx}" onchange="toggleExpPayMode('${sfx}')">
       <option value="">— Cash / Untracked —</option>
       ${funds.length?`<optgroup label="💳 Pay from Fund">${funds.map(f=>`<option value="fund:${f.id}"${curPayMode==="fund:"+f.id?" selected":""}>${f.icon} ${f.name} · ${fmtShort(getFundBalance(f.id,S.activeMonth))}</option>`).join("")}</optgroup>`:""}
       ${(S.creditCards||[]).length?`<optgroup label="💳 Charge to Credit Card">${(S.creditCards||[]).map(cd=>`<option value="ccard:${cd.id}"${curPayMode==="ccard:"+cd.id?" selected":""}>${cd.icon} ${cd.name}</option>`).join("")}</optgroup>`:""}
       ${installs.length?`<optgroup label="📋 Charge to Installment">${installs.map(x=>`<option value="cc:${x.id}"${curPayMode==="cc:"+x.id?" selected":""}>${x.icon} ${x.name} · ${fmt(installRemaining(x))} left</option>`).join("")}</optgroup>`:""}
     </select>
-    <div id="ePayInfo" style="font-size:11px;color:var(--muted);margin:-5px 0 8px;min-height:14px"></div>
+    <div id="ePayInfo${sfx}" style="font-size:11px;color:var(--muted);margin:-5px 0 8px;min-height:14px"></div>
     <div class="field-label">Note (optional)</div>
-    <input type="text" id="eNote" placeholder="What's this for?" value="${prefill.note||""}"/>
+    <input type="text" id="eNote${sfx}" placeholder="What's this for?" value="${prefill.note||""}"/>
     <div class="field-label">Date</div>
-    <input type="date" id="eDate" value="${prefill.date||today()}"/>
+    <input type="date" id="eDate${sfx}" value="${prefill.date||today()}"/>
     <button class="btn-full" style="background:#EF4444" onclick="${isEdit?`submitEditExp(${numId})`:"submitExp()"}">${isEdit?"💾 Save Changes":"Save Expense"}</button>`;
 }
-function toggleExpPayMode(){
-  const sel=document.getElementById("ePayMode");
-  const info=document.getElementById("ePayInfo");
+function toggleExpPayMode(sfx=""){
+  const sel=document.getElementById("ePayMode"+sfx);
+  const info=document.getElementById("ePayInfo"+sfx);
   if(!sel||!info)return;
   const v=sel.value;
   if(v.startsWith("fund:")){
@@ -1261,7 +1262,7 @@ function getEffectiveBudget(catName,cashIn){
 function openAddExp(prefill={}){
   _calcExpr=prefill.amount?String(prefill.amount):"";document.getElementById("sheetAddExp").innerHTML=expFormHTML(prefill,false);
   openM("modalAddExp");
-  setTimeout(toggleExpPayMode,50);
+  setTimeout(()=>toggleExpPayMode(""),50);
 }
 async function submitExp(){
   const a=parseFloat(document.getElementById("eAmt").value);
@@ -1294,19 +1295,19 @@ function openEditExp(id){
   _calcExpr=String(e.amount||"");
   document.getElementById("sheetEditExp").innerHTML=expFormHTML(prefill,true);
   openM("modalEditExp");
-  setTimeout(toggleExpPayMode,50);
+  setTimeout(()=>toggleExpPayMode("Edit"),50);
 }
 async function submitEditExp(id){
   const nid=Number(id);
   const idx=S.expenses.findIndex(x=>Number(x.id)===nid);
   if(idx<0){flash("⚠️ Expense not found — please try again");return;}
-  const a=parseFloat(document.getElementById("eAmt").value);
+  const a=parseFloat(document.getElementById("eAmtEdit").value);
   if(!a||isNaN(a)){flash("⚠️ Enter a valid amount");return;}
-  const payMode=document.getElementById("ePayMode")?.value||"";
+  const payMode=document.getElementById("ePayModeEdit")?.value||"";
   const updated={...S.expenses[idx],amount:a,
-    category:document.getElementById("eCat").value,
-    note:document.getElementById("eNote").value.trim(),
-    date:document.getElementById("eDate").value,
+    category:document.getElementById("eCatEdit").value,
+    note:document.getElementById("eNoteEdit").value.trim(),
+    date:document.getElementById("eDateEdit").value,
     payMode};
   if(payMode.startsWith("fund:"))updated.fundId=payMode.slice(5); else delete updated.fundId;
   if(payMode.startsWith("cc:"))updated.installId=payMode.slice(3); else delete updated.installId;
