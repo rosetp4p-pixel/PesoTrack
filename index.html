@@ -121,6 +121,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .inst-stat{background:var(--surface2);border-radius:9px;padding:7px 10px;text-align:center;}
 .inst-stat-label{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;}
 .inst-stat-val{font-size:12px;font-weight:900;margin-top:2px;}
+.fund-row.dragging{opacity:0.92;transition:none;}
+.fund-row:not(.dragging){transition:transform 0.15s;}
 .inst-detail{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:none;}
 .inst-detail.open{display:block;}
 .pay-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1a2540;font-size:12px;}
@@ -213,7 +215,7 @@ const S={
   installments:[],
   expBeginBal:{}, // {catName: amount} — opening balance per expense category
   catsType:null,newCat:{name:"",icon:"📦",color:"#94A3B8"},showEmoji:false,
-  openReportCats:{},openInstalls:{},
+  openReportCats:{},openInstalls:{},openFunds:{},
 };
 
 // ─── HELPERS ─────────────────────────────────────────────────
@@ -369,29 +371,112 @@ function renderDashboard(){
       <button class="btn-blue" onclick="openFunds()">+ Add Funds</button>
     </div>`;
   } else {
+    h+=`<div id="fundsList">`;
     S.funds.forEach((f,idx)=>{
       const carryBal=getFundBalance(f.id,S.activeMonth);
-      h+=`<div class="row" style="border-left:3px solid ${f.color}">
-        <div style="display:flex;flex-direction:column;gap:1px;flex-shrink:0">
-          <button onclick="moveFund(${idx},-1)" style="background:var(--surface2);border:none;border-radius:4px;padding:1px 5px;cursor:pointer;font-size:10px;color:var(--text);opacity:${idx===0?'0.3':'1'}" ${idx===0?'disabled':''}>▲</button>
-          <button onclick="moveFund(${idx},1)" style="background:var(--surface2);border:none;border-radius:4px;padding:1px 5px;cursor:pointer;font-size:10px;color:var(--text);opacity:${idx===S.funds.length-1?'0.3':'1'}" ${idx===S.funds.length-1?'disabled':''}>▼</button>
+      const isOpen=!!S.openFunds[f.id];
+      const txns=fundTxnsForMonth(f.id,S.activeMonth);
+      h+=`<div class="row fund-row" data-fund-id="${f.id}" style="border-left:3px solid ${f.color};flex-direction:column;align-items:stretch;cursor:pointer" onclick="toggleFund('${f.id}')">
+        <div style="display:flex;align-items:center;gap:8px;width:100%">
+          <div class="drag-handle" style="flex-shrink:0;padding:6px 2px;cursor:grab;touch-action:none;font-size:16px;line-height:1;color:var(--muted);user-select:none" onpointerdown="startFundDrag(event,'${f.id}')" onclick="event.stopPropagation()">⠿</div>
+          <span style="font-size:20px">${f.icon}</span>
+          <div class="row-body">
+            <div class="row-name">${f.name}</div>
+            <div style="font-size:10px;color:var(--muted)">Running balance</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;display:flex;align-items:center;gap:6px">
+            <div style="font-size:14px;font-weight:900;color:${carryBal>=0?"#60A5FA":"#F97316"}">${fmt(carryBal)}</div>
+            <span style="font-size:11px;color:var(--muted);transition:transform 0.15s;transform:rotate(${isOpen?'180':'0'}deg)">▼</span>
+          </div>
         </div>
-        <span style="font-size:20px">${f.icon}</span>
-        <div class="row-body">
-          <div class="row-name">${f.name}</div>
-          <div style="font-size:10px;color:var(--muted)">Running balance</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:14px;font-weight:900;color:${carryBal>=0?"#60A5FA":"#F97316"}">${fmt(carryBal)}</div>
+        <div class="inst-detail${isOpen?" open":""}" onclick="event.stopPropagation()">
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">${mlabel(S.activeMonth)} activity</div>
+          ${txns.length?txns.map(t=>`
+            <div class="pay-row">
+              <div>
+                <span style="font-size:9px;background:${t.color}22;color:${t.color};border-radius:4px;padding:1px 4px;font-weight:800;margin-right:4px;">${t.tagIcon} ${t.tagLabel}</span>
+                <span style="color:var(--text)">${t.label}</span>
+                ${t.note?`<span style="color:var(--muted)"> · ${t.note}</span>`:""}
+                <div class="row-date" style="margin-top:1px">${t.date}</div>
+              </div>
+              <span style="color:${t.amount>=0?'#34D399':'#F87171'};font-weight:900;flex-shrink:0;margin-left:8px">${t.amount>=0?'+':'-'}${fmt(Math.abs(t.amount))}</span>
+            </div>`).join(""):`<div style="color:var(--muted2);font-size:12px;text-align:center;padding:8px 0">No activity in ${mlabel(S.activeMonth)}</div>`}
         </div>
       </div>`;
     });
+    h+=`</div>`;
   }
   h+=`</div>`;
 
   document.getElementById("content").innerHTML=h;
   removeFabs();
 }
+
+// ─── FUND DRAG REORDER (Home tab) ─────────────────────────────
+let fundDrag=null;
+function startFundDrag(e,fundId){
+  e.preventDefault();e.stopPropagation();
+  const row=document.querySelector(`.fund-row[data-fund-id="${fundId}"]`);
+  const list=document.getElementById("fundsList");
+  if(!row||!list)return;
+  const rows=[...list.querySelectorAll(".fund-row")];
+  fundDrag={
+    fundId,row,startY:e.clientY,
+    positions:rows.map(r=>{const rect=r.getBoundingClientRect();return{id:r.dataset.fundId,top:rect.top,height:rect.height};})
+  };
+  row.classList.add("dragging");
+  row.style.position="relative";
+  row.style.zIndex="40";
+  row.style.boxShadow="0 8px 24px rgba(0,0,0,0.45)";
+  row.style.borderRadius="12px";
+  try{e.target.setPointerCapture(e.pointerId);}catch(err){}
+  document.addEventListener("pointermove",onFundDragMove);
+  document.addEventListener("pointerup",endFundDrag);
+  document.addEventListener("pointercancel",endFundDrag);
+}
+function onFundDragMove(e){
+  if(!fundDrag)return;
+  const dy=e.clientY-fundDrag.startY;
+  fundDrag.row.style.transform=`translateY(${dy}px)`;
+}
+async function endFundDrag(e){
+  if(!fundDrag)return;
+  const clientY=e.clientY;
+  const others=fundDrag.positions.filter(p=>p.id!==fundDrag.fundId);
+  let newIndex=others.length;
+  for(let i=0;i<others.length;i++){
+    if(clientY<others[i].top+others[i].height/2){newIndex=i;break;}
+  }
+  const arr=S.funds;
+  const fromIdx=arr.findIndex(f=>f.id===fundDrag.fundId);
+  if(fromIdx>-1){
+    const[moved]=arr.splice(fromIdx,1);
+    arr.splice(newIndex,0,moved);
+    await persist();
+  }
+  document.removeEventListener("pointermove",onFundDragMove);
+  document.removeEventListener("pointerup",endFundDrag);
+  document.removeEventListener("pointercancel",endFundDrag);
+  fundDrag=null;
+  renderDashboard();
+}
+
+// Combined ledger (expenses, incomes, transfers) for a single fund, for a given month
+function fundTxnsForMonth(fundId,month){
+  const out=[];
+  mExp(month).forEach(e=>{
+    if(e.fundId===fundId)out.push({date:e.date,label:e.category,note:e.note,amount:-e.amount,tagIcon:"🧾",tagLabel:"Expense",color:"#F87171"});
+  });
+  mInc(month).forEach(i=>{
+    if(i.fundId===fundId)out.push({date:i.date,label:i.category||"Cash In",note:i.note,amount:i.amount,tagIcon:"⬇️",tagLabel:"Cash In",color:"#34D399"});
+  });
+  (S.transfers||[]).filter(t=>mkey(new Date(t.date))===month).forEach(t=>{
+    if(t.toFundId===fundId)out.push({date:t.date,label:`From ${t.fromFundName}`,note:t.note,amount:t.amount,tagIcon:"🔄",tagLabel:"Transfer In",color:"#38BDF8"});
+    if(t.fromFundId===fundId)out.push({date:t.date,label:`To ${t.toFundName}`,note:t.note,amount:-t.amount,tagIcon:"🔄",tagLabel:"Transfer Out",color:"#38BDF8"});
+  });
+  return out.sort((a,b)=>b.date.localeCompare(a.date));
+}
+function toggleFund(id){S.openFunds[id]=!S.openFunds[id];renderDashboard();}
 
 // ─── EXPENSES ────────────────────────────────────────────────
 function renderExpenses(){
