@@ -503,7 +503,7 @@ function renderExpenses(){
     if((S.creditCards||[]).length){
       h+=`<div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px">💳 Credit Cards</div>`;
       S.creditCards.forEach(cd=>{
-        const thisM=getCCThisMonth(cd.id),paid=getCCPaid(cd.id,S.activeMonth),outstanding=getCCBalance(cd.id,S.activeMonth);
+        const thisM=getCCThisMonth(cd.id),prev=getCCPrevBal(cd.id),paidM=getCCPaidThisMonth(cd.id),outstanding=getCCBalance(cd.id,S.activeMonth);
         h+=`<div class="inst-card" style="border-left-color:${cd.color}" onclick="openCreditCards()">
           <div class="inst-header">
             <span style="font-size:22px">${cd.icon}</span>
@@ -512,10 +512,10 @@ function renderExpenses(){
                 <div class="inst-name">${cd.name}</div>
                 <span style="color:var(--muted);font-size:13px;margin-left:8px;flex-shrink:0">▼</span>
               </div>
-              <div class="inst-sub">This month: ${fmt(thisM)} · Outstanding: ${fmt(outstanding)}</div>
+              <div class="inst-sub">Prev bal ${fmtCCBal(prev)} + Charged ${fmt(thisM)} − Paid ${fmt(paidM)}</div>
               <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:10px;color:var(--muted)">
                 <span>Charged: <strong style="color:#F87171">${fmt(thisM)}</strong></span>
-                <span>Unpaid: <strong style="color:#F97316">${fmt(outstanding)}</strong></span>
+                <span>Outstanding: <strong style="color:#F97316">${fmtCCBal(outstanding)}</strong></span>
               </div>
             </div>
           </div>
@@ -1250,8 +1250,37 @@ function calcInput(key){
 // CREDIT CARD HELPERS
 function getCCCharged(id,m){let t=0;S.expenses.forEach(e=>{if(e.ccId===id&&mkey(new Date(e.date))<=m)t+=e.amount;});return t;}
 function getCCPaid(id,m){let t=0;S.incomes.forEach(i=>{if(i.ccPayId===id&&mkey(new Date(i.date))<=m)t+=i.amount;});return t;}
-function getCCBalance(id,m){return Math.max(0,getCCCharged(id,m)-getCCPaid(id,m));}
-function getCCThisMonth(id){return S.expenses.filter(e=>e.ccId===id&&mkey(new Date(e.date))===S.activeMonth).reduce((s,e)=>s+e.amount,0);}
+// Running balance up to and including month m. Negative = overpaid (credit on card).
+function getCCBalance(id,m){return getCCCharged(id,m)-getCCPaid(id,m);}
+function prevMKey(m){const[y,mo]=m.split("-").map(Number);const d=new Date(y,mo-2,1);return mkey(d);}
+function getCCPrevBal(id,m=S.activeMonth){return getCCBalance(id,prevMKey(m));}
+function getCCThisMonth(id,m=S.activeMonth){return S.expenses.filter(e=>e.ccId===id&&mkey(new Date(e.date))===m).reduce((s,e)=>s+e.amount,0);}
+function getCCPaidThisMonth(id,m=S.activeMonth){return S.incomes.filter(i=>i.ccPayId===id&&mkey(new Date(i.date))===m).reduce((s,i)=>s+i.amount,0);}
+function fmtCCBal(b){return b<-0.004?`<span style="color:#34D399">Overpaid ${fmt(-b)}</span>`:fmt(b);}
+// Find the fund-side expense created together with a CC payment
+function ccPayLinkedExp(inc){
+  if(inc.payGroup)return S.expenses.find(x=>x.payGroup===inc.payGroup)||null;
+  // Older payments have no link id: pair them with matching fund deductions one-to-one (oldest first)
+  const card=(S.creditCards||[]).find(c=>c.id===inc.ccPayId);
+  const same=a=>Math.abs(a-inc.amount)<0.01;
+  const incs=S.incomes.filter(i=>!i.payGroup&&i.ccPayId===inc.ccPayId&&i.date===inc.date&&same(i.amount)).sort((a,b)=>Number(a.id)-Number(b.id));
+  const exps=S.expenses.filter(e=>!e.payGroup&&e.category==="Credit Card"&&e.date===inc.date&&same(e.amount)&&(e.note||"")===`CC payment: ${card?card.name:""}`).sort((a,b)=>Number(a.id)-Number(b.id));
+  return exps[incs.indexOf(inc)]||null;
+}
+function ccPaymentsList(id){
+  const pays=S.incomes.filter(i=>i.ccPayId===id).sort((a,b)=>b.date.localeCompare(a.date)||Number(b.id)-Number(a.id));
+  // flag likely duplicates: same date and amount within ₱1
+  return pays.map(p=>({p,dup:pays.some(q=>q!==p&&q.date===p.date&&Math.abs(q.amount-p.amount)<1)}));
+}
+async function delCCPayment(incId){
+  const inc=S.incomes.find(i=>String(i.id)===String(incId));if(!inc)return;
+  const linked=ccPayLinkedExp(inc);
+  const msg=`Delete this ${fmt(inc.amount)} payment on ${inc.date}?`+(linked?`\nThe matching ${fmt(linked.amount)} deduction from the fund will also be removed.`:"\n(No fund deduction is linked to it.)");
+  if(!confirm(msg))return;
+  S.incomes=S.incomes.filter(i=>i!==inc);
+  if(linked)S.expenses=S.expenses.filter(e=>e!==linked);
+  await persist();flash("🗑 Payment removed");drawCreditCards();render();
+}
 
 const CC_COLORS=["#F87171","#F97316","#FACC15","#A78BFA","#60A5FA","#34D399","#F472B6","#38BDF8","#FB923C","#818CF8"];
 function openCreditCards(){drawCreditCards();openM("modalCreditCards");}
@@ -1262,8 +1291,9 @@ function drawCreditCards(){
   if(!cards.length){h+=`<div style="color:var(--muted2);font-size:13px;text-align:center;padding:14px">No credit cards yet.</div>`;}
   else{
     cards.forEach((cd,idx)=>{
-      const thisM=getCCThisMonth(cd.id),paid=getCCPaid(cd.id,S.activeMonth),outstanding=getCCBalance(cd.id,S.activeMonth);
-      const pct=cd.limit>0?Math.min(100,(outstanding/cd.limit)*100):0;
+      const thisM=getCCThisMonth(cd.id),prev=getCCPrevBal(cd.id),paidM=getCCPaidThisMonth(cd.id),outstanding=getCCBalance(cd.id,S.activeMonth);
+      const pct=cd.limit>0?Math.min(100,(Math.max(0,outstanding)/cd.limit)*100):0;
+      const pays=ccPaymentsList(cd.id);const dupN=pays.filter(x=>x.dup).length;
       h+=`<div style="background:var(--surface2);border-radius:14px;padding:13px 14px;margin-bottom:10px;border-left:4px solid ${cd.color}">
         <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
           <span style="font-size:20px">${cd.icon}</span>
@@ -1271,11 +1301,18 @@ function drawCreditCards(){
           <div style="width:13px;height:13px;border-radius:50%;background:${cd.color};cursor:pointer;flex-shrink:0" onclick="cycleCCColor(${idx})"></div>
           <button class="del-btn" onclick="delCreditCard(${idx})">🗑</button>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
-          <div style="background:var(--surface);border-radius:9px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">This Month</div><div style="font-size:12px;font-weight:900;color:#F87171;margin-top:2px">${fmt(thisM)}</div></div>
-          <div style="background:var(--surface);border-radius:9px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Total Paid</div><div style="font-size:12px;font-weight:900;color:#34D399;margin-top:2px">${fmt(paid)}</div></div>
-          <div style="background:var(--surface);border-radius:9px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Outstanding</div><div style="font-size:12px;font-weight:900;color:${outstanding>0?'#F97316':'#34D399'};margin-top:2px">${fmt(outstanding)}</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+          <div style="background:var(--surface);border-radius:9px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Previous Balance</div><div style="font-size:12px;font-weight:900;color:#FACC15;margin-top:2px">${fmtCCBal(prev)}</div></div>
+          <div style="background:var(--surface);border-radius:9px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">+ Charged This Month</div><div style="font-size:12px;font-weight:900;color:#F87171;margin-top:2px">${fmt(thisM)}</div></div>
+          <div style="background:var(--surface);border-radius:9px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">− Paid This Month</div><div style="font-size:12px;font-weight:900;color:#34D399;margin-top:2px">${fmt(paidM)}</div></div>
+          <div style="background:var(--surface);border-radius:9px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">= Outstanding</div><div style="font-size:12px;font-weight:900;color:${outstanding>0?'#F97316':'#34D399'};margin-top:2px">${fmtCCBal(outstanding)}</div></div>
         </div>
+        ${dupN?`<div style="background:#451A03;color:#FDBA74;border-radius:9px;padding:8px 10px;font-size:11px;margin-bottom:8px">⚠️ ${dupN} payments look like duplicates (same date &amp; amount). They make the balance look lower than it really is. Open Payment History below and delete the extras.</div>`:""}
+        ${pays.length?`<details style="margin-bottom:8px"${dupN?" open":""}><summary style="font-size:11px;font-weight:800;color:var(--muted);cursor:pointer">🧾 Payment History (${pays.length})</summary>
+          ${pays.map(({p,dup})=>{const lx=ccPayLinkedExp(p);const lf=lx?(S.funds||[]).find(f=>f.id===lx.fundId):null;return `<div style="display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--surface);font-size:11px">
+            <div style="flex:1"><div style="font-weight:800;color:#F8FAFC">${fmt(p.amount)} ${dup?'<span style="color:#FB923C">⚠️ duplicate?</span>':''}</div><div style="color:var(--muted)">${p.date} · ${lf?"from "+lf.name:"no fund deducted"}${p.note?" · "+p.note:""}</div></div>
+            <button class="del-btn" onclick="delCCPayment('${p.id}')">🗑</button></div>`;}).join("")}
+        </details>`:""}
         ${cd.limit>0?`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px"><span>Limit Used</span><span>${pct.toFixed(0)}% of ${fmt(cd.limit)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${pct>90?'#EF4444':cd.color}"></div></div></div>`:""}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
           <div><div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px">Credit Limit (₱)</div><input type="number" placeholder="0=no limit" value="${cd.limit||0}" onchange="setCCLimit(${idx},this.value)" inputmode="decimal" style="margin-bottom:0;padding:7px 10px;font-size:12px"/></div>
@@ -1305,7 +1342,7 @@ async function submitNewCC(){
 }
 function openCCPayment(ccId){
   const card=(S.creditCards||[]).find(c=>c.id===ccId);if(!card)return;
-  const outstanding=getCCBalance(ccId,S.activeMonth);
+  const outstanding=Math.max(0,getCCBalance(ccId,S.activeMonth));
   const funds=S.funds||[];
   const fundOpts=funds.length?`<option value="">— No specific fund —</option>${funds.map(f=>`<option value="${f.id}">${f.icon} ${f.name} · ${fmtShort(getFundBalance(f.id,S.activeMonth))}</option>`).join("")}`:`<option>No funds set up</option>`;
   document.getElementById("sheetFunds").innerHTML=`
@@ -1331,9 +1368,12 @@ async function submitCCPayment(ccId){
   const note=document.getElementById("ccPayNote")?.value.trim();
   const fundId=document.getElementById("ccPayFund")?.value||null;
   const card=(S.creditCards||[]).find(cd=>cd.id===ccId);
-  const entry={id:Date.now(),amount:amt,source:"Credit Card Payment",note:`${card?.name||"CC"} payment${note?" — "+note:""}`,date,ccPayId:ccId,isCCPayment:true};
+  const dup=S.incomes.find(i=>i.ccPayId===ccId&&i.date===date&&Math.abs(i.amount-amt)<1);
+  if(dup&&!confirm(`A ${fmt(dup.amount)} payment to ${card?.name||"this card"} on ${date} is already recorded.\nRecord another one anyway?`))return;
+  const pg="pay_"+Date.now();
+  const entry={id:Date.now(),amount:amt,source:"Credit Card Payment",note:`${card?.name||"CC"} payment${note?" — "+note:""}`,date,ccPayId:ccId,isCCPayment:true,payGroup:pg};
   S.incomes.push(entry);
-  if(fundId){S.expenses.push({id:Date.now()+1,amount:amt,category:"Credit Card",note:`CC payment: ${card?.name||""}`,date,fundId,isCCPayment:true});}
+  if(fundId){S.expenses.push({id:Date.now()+1,amount:amt,category:"Credit Card",note:`CC payment: ${card?.name||""}`,date,fundId,isCCPayment:true,payGroup:pg});}
   await persist();closeM("modalFunds");flash("✅ CC payment recorded!");render();
 }
 
@@ -1526,11 +1566,21 @@ function importCSV(input){
           const entry={id,amount,category:catOrSrc||"Others",note,date};
           if(fundId)entry.fundId=fundId;
           if(payMode)entry.payMode=payMode;
+          if(payMode.startsWith("ccard:"))entry.ccId=payMode.slice(6);
+          if(payMode.startsWith("cc:"))entry.installId=payMode.slice(3);
+          if(payMode.startsWith("fund:")&&!entry.fundId)entry.fundId=payMode.slice(5);
+          if(entry.category==="Credit Card"&&/^CC payment:/.test(note))entry.isCCPayment=true;
           newExp.push(entry);expCount++;
         } else if(type==="income"){
           if(existingIncIds.has(String(id)))return;
           const entry={id,amount,source:catOrSrc||"Others",note,date};
           if(fundId)entry.fundId=fundId;
+          if(entry.source==="Credit Card Payment"){
+            const card=(S.creditCards||[]).find(c=>note===c.name+" payment"||note.startsWith(c.name+" payment —"));
+            entry.isCCPayment=true;
+            if(card)entry.ccPayId=card.id;
+            delete entry.fundId; // the fund deduction is its own Expense row
+          }
           newInc.push(entry);incCount++;
         } else if(type==="transfer"){
           // Transfer rows: category/source = "FromFund → ToFund"
